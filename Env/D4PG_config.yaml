@@ -1,0 +1,138 @@
+# 这个是用来执行独立MARL环境
+env:
+  # 并行化环境的数目
+  parallel_env: 100
+  env_name: MinitaurBulletEnv-v0
+  # ------- 定义动作空间和状态空间的维度 --------------
+  agent_nums: 1
+  agent_name_list: ['default']
+
+policy_name: 'D4PG_Exp'
+training_mode: Train
+# learning rate 为0的时间,用于优化器的初始化
+warmup_time: 0
+# ip of log server, config_server
+main_server_ip: '10.19.93.9'
+# 10.19.93.9
+# 定义日志文件的文件夹
+log_dir: "./logs"
+# 定义日志服务器的端口
+log_server_port: 8100
+# 这个表示的是将历史的模型保存20个
+model_cache_size: 20
+# 这两个端口分别表示,worker请求的端口,以及learner将模型通过哪一个端口发布出去
+config_server_model_from_learner: 9112
+config_server_model_to_worker: 9001
+# 主模型更新时间间隔,这个变量主要是worker端使用，没隔20s调用一次fetcher从config server获取一次最新的模型 -------
+sampler_model_update_interval: 20
+# ----------- configserver打开http的端口 -----------
+config_server_http_port: 9002
+# ========== learner related ==============
+# ----- 这个变量是learner端使用，表示发布新模型的时间间隔 -----
+model_update_intervel: 3
+# --------- 这个变量是dataserver是从buffer里面采一个batch的数据放入到plasma client里面的时间间隔 -----------------
+data_server_sampling_interval: 5
+# ------- 将worker端采样得到的数据保存到本地的文件夹 --------
+data_saved_folder: 'Data_saved'
+# ----- 要不要开启数据保存 ------
+data_save_start: False
+# ----  这个变量表示要不要从model pool中载入模型 -----
+load_data_from_model_pool: False
+policy_config:
+  # ---- 主机索引 -----------
+  main_machine_index: 0
+  machine_list: ['10.19.93.9']
+  # 定义一个设备对应与多少个数据server
+  server_number_per_device: 2
+  # 定义一个机器有多少个设备
+  device_number_per_machine: 1
+  # -- 这个参数表示的是数据服务开始端口 ----------
+  start_data_server_port: 9527
+  # ------ 训练类型 ------------
+  policy_type: 'latest'
+  training_type: 'RL'
+  # ------ 使用categorical critic net -------
+  categorical_critic_net: True
+  algorithm: Independent_D4PG
+  # ---- 这个变量表示要不要使用target网络 ------
+  using_target_network: True
+  # Pytorch DDP相关
+  ddp_port: 50001
+  batch_size: &batch_size 1024
+  plasma_server_location: Plasma_server/plasma
+  # ------- 这两个参数在训练RL的时候会使用到，如果都是False，说明actor和critic在一起 --------
+  centralized_critic: &centralized_critic False
+  seperate_critic: &seperate_critic True
+  # -------- 每训练1000次就保存一下模型 ----------
+  model_save_interval: 1000
+  # --------- 每采样20个点发送一次数据 -------------
+  woker_transmit_interval: 128
+  # ---------- 定义最大采样长度 ----------
+  max_trajectory_length: 1000
+  # --------- 使用n step TD -----
+  n_step: &n_step 5
+  gamma: &gamma 0.99
+  # ------ 设置模型的保存路径 ——----------
+  # ======= 两个路径一个是最新的模型构成的模型池，另外一个是每训练若干次保存下来的模型 =====
+  model_pool_path: "Exp/Model/model_pool/"
+  saved_model_path: "Exp/Model/saved_model/"
+  tensorboard_folder: "Tensorboard_log"
+  # ----- 只有一个智能体，显然是参数共享和同质化都是True ---------
+  parameter_sharing: &parameter_sharing False
+  homogeneous_agent: &homogeneous_agent False
+  # ------ 这个地方采用的cosineannealingwarmrestarts()学习率调整 ------------
+  T_zero: 5
+  # -------- 定义探索策略 ------
+  ou_enabled: True
+  ou_config:
+    action_dim: &action_dim 8
+    action_low: -1
+    action_high: 1
+  # -------- 定义replay buffer相关的参数 -------
+  priority_replay_buffer: True
+  replay_buffer_config:
+    buffer_name: prioritized_replay_buffer
+    # prioritized_replay_buffer
+    capacity: 50000
+    batch_size: *batch_size
+    # ----- 定义alpha和beta两个超参数 -------
+    alpha: 0.6
+    beta_increase_rate: 0.000001
+  # -------- 模型训练相关的参数 ---------
+  training_parameters:
+    # ===== 梯度计算的时候，最大梯度值 ====
+    max_grad_norm: 10 
+    # ===== discount ratio =====
+    gamma: *gamma
+    # ------- n_step TD -------
+    n_step: *n_step
+    parameter_sharing: *parameter_sharing
+    centralized_critic: *centralized_critic
+    seperate_critic: *seperate_critic
+    # -------- soft-update parameter ----
+    tau: 1e-3
+    n_atoms: &n_atoms 51
+    value_min: &value_min -2
+    value_max: &value_max 2
+  # ------- 智能体相关的参数 ----------
+  agent:
+    policy:
+      default:
+        learning_rate: 1e-5
+        state_dim: 28
+        action_dim: *action_dim
+        model_name: 'FC_model'
+        model_type: 'policy'
+
+    critic:
+      default:
+        learning_rate: 1e-5
+        model_name: 'FC_model'
+        model_type: 'categorical_critic'
+        hidden_dim: 400
+        n_atoms: *n_atoms
+        value_min: *value_min
+        value_max: *value_max
+     
+
+
