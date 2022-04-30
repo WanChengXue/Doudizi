@@ -342,6 +342,6 @@ class OUNoise():
         self.state += self.ou_teta * (self.ou_mu - self.state) # ou_teta为0.15
         self.state += self.ou_sigma * np.random.normal(size=self.action_dim)
         # a_state的修改为 ou_tehta * (mu - a_state) + ou_sigma * (长度为action_dim的正太噪声)
-        current_actions += self.ou_epsilon * self.state
-        actions = np.clip(current_actions, self.low, self.high)
+        ou_explore_action = current_actions + self.ou_epsilon * torch.FloatTensor(self.state).unsqueeze(0)
+        actions = torch.clamp(ou_explore_action, self.low, self.high)
         return actions

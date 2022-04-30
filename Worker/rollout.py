@@ -19,6 +19,7 @@ import pybullet_envs
 from Utils.config import parse_config
 from Utils.utils import setup_logger
 from Worker.statistic import StatisticsUtils
+from Worker.agent_manager import Agent_manager
 
 class sample_generator:
     def __init__(self, config_path, port_num=None):
@@ -31,15 +32,11 @@ class sample_generator:
         self.agent_name_list = self.config_dict['env']['agent_name_list']
         self.context = zmq.Context()
         self.statistic = StatisticsUtils()
+        logger_path = pathlib.Path(self.config_dict['log_dir'] + '/Worker_log/' + self.uuid[:6])
+        self.logger = setup_logger('Worker_'+ self.uuid[:6], logger_path)
         if self.eval_mode:
-            logger_path = pathlib.Path(self.config_dict['log_dir'] + '/Evaluate/' + self.uuid[:6])
-            self.logger = setup_logger('Evaluate_log_'+self.uuid[:6], logger_path)
-            from Evaluate.evaluate_agent import Agent_manager
             self.init_random_seed()
         else:
-            logger_path = pathlib.Path(self.config_dict['log_dir'] + '/Worker_log/' + self.uuid[:6])
-            self.logger = setup_logger('Worker_log_'+self.uuid[:6], logger_path)
-            from Worker.agent import Agent_manager
             # ---------- 这里之所以不直接继承Learner中的base server,是因为很可能采样端和learning端不在同一个机器上 --------
             self.log_sender = self.context.socket(zmq.PUSH)
             self.log_sender.connect("tcp://{}:{}".format(self.config_dict['log_server_address'], self.config_dict['log_server_port']))
@@ -49,7 +46,7 @@ class sample_generator:
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
         self.agent.reset()
         self.env = gym.make(self.config_dict['env']['env_name'])
-        self.corporative_scenario = self.config_dict['env'].get('corporative_scenario', False)
+        self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
         self.logger.info("---------------- 完成sampler的构建 ------------")
 
     def pack_data(self, data_dict):
@@ -169,7 +166,7 @@ class sample_generator:
         n_step = self.policy_config.get('n_step',1)
         # ------------ 开一个队列，用来存放一下中间的step ------
         n_step_state_queue = queue.Queue(maxsize=n_step)
-        if self.corporative_scenario:
+        if self.multiagent_scenario:
             data_dict = []
             n_step_reward_list = []
         else:
@@ -186,7 +183,7 @@ class sample_generator:
             next_centralized_state, instant_reward, done, info = self.env.step(action)
             next_agent_obs = self._generate_obs(next_centralized_state)
             step += 1
-            if self.corporative_scenario:
+            if self.multiagent_scenario:
                 episodic_dict = dict()
                 episodic_dict['current_agent_obs'] = current_agent_obs
                 episodic_dict['current_centralized_state'] = deepcopy(current_centralized_state)
@@ -220,7 +217,7 @@ class sample_generator:
             #     self.logger.info("----------- worker端口发送数据 ---------")
             #     self.send_data(data_dict)
             #     # self.logger.info("-------- 数据长度为：{} ------".format(len(data_dict)))
-            #     if self.corporative_scenario:
+            #     if self.multiagent_scenario:
             #         data_dict = []
             #     else:
             #         data_dict = dict()

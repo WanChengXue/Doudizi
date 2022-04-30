@@ -20,22 +20,22 @@ def serialize_model(model_path_prefix, model_url_prefix, net_dict, cache_size, l
     # ------------ 传入的必然是字典形式，如果是共享参数，则net_dict['policy']['default'] = model
     url_dict = dict()
     timestamp = str(time.time())
-    for model_type in net_dict:
-        if isinstance(net_dict[model_type], dict):
+    for agent_name in net_dict.keys():
+        if isinstance(net_dict[agent_name], dict):
             sub_url_dict = dict()
-            for sub_model in net_dict[model_type]:
-                model_save_path = model_path_prefix + '/' + model_type +  '_' + sub_model + '_' + timestamp
-                model_url_path = model_url_prefix + '/' + model_type +  '_' +  sub_model  + '_' + timestamp
-                sub_url_dict[sub_model] = model_url_path
-                torch.save(net_dict[model_type][sub_model].state_dict(), model_save_path)
-                remove_old_version_model(model_path_prefix+'/'+model_type+  '_' +sub_model+'*', cache_size, logger)
-            url_dict[model_type] = sub_url_dict
+            for model_type in net_dict[agent_name].keys():
+                model_save_path = model_path_prefix + '/' + agent_name +  '_' + model_type + '_' + timestamp
+                model_url_path = model_url_prefix + '/' + agent_name +  '_' +  model_type  + '_' + timestamp
+                sub_url_dict[model_type] = model_url_path
+                torch.save(net_dict[agent_name][model_type].state_dict(), model_save_path)
+                remove_old_version_model(model_path_prefix+'/'+agent_name+  '_' +model_type+'*', cache_size, logger)
+            url_dict[agent_name] = sub_url_dict
         else:
-            model_save_path = model_path_prefix + '/' + model_type + '_' + timestamp
-            model_url_path = model_url_prefix + '/' + model_type + '_' + timestamp
+            model_save_path = model_path_prefix + '/' + agent_name + '_' + timestamp
+            model_url_path = model_url_prefix + '/' + agent_name + '_' + timestamp
             torch.save(net_dict[model_type].state_dict(), model_save_path)
-            remove_old_version_model(model_path_prefix+'/'+model_type+'*', cache_size, logger)
-            url_dict[model_type] = model_url_path
+            remove_old_version_model(model_path_prefix+'/'+agent_name+'*', cache_size, logger)
+            url_dict[agent_name] = model_url_path
     return url_dict
 
 
@@ -57,6 +57,7 @@ def create_model(model_config):
     model_name = model_config['model_name']
     model_fn = getattr(importlib.import_module("Model.{}".format(model_name)), 'init_{}_net'.format(model_config['model_type']))
     return model_fn(model_config)
+    
 
 def remove_old_version_model(model_prefix, cache_size, logger):
     # -------------- 这个函数是用来移除多余的模型 -------------

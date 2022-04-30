@@ -15,7 +15,7 @@ class SLTrainer:
         self.model = model['policy']
         self.loss_fn = nn.L1Loss(reduction='none')
         self.max_grad_norm = self.policy_config['max_grad_norm']
-        self.parameter_sharing = self.policy_config.get('parameter_sharing',True)
+        self.parameter_sharing = self.policy_config.get('parameter_sharing',False)
         self.agent_name_list = model['policy'].keys()
 
     def huber_loss(self, a,b, delta=1.0):

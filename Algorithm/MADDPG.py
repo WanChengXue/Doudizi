@@ -25,7 +25,7 @@ class MADDPGTrainer:
         self.critic_optimizer = optimizer['critic']
         self.policy_scheduler = scheduler['policy']
         self.critic_scheduler = scheduler['critic']
-        self.parameter_sharing = self.policy_config.get('parameter_sharing', True)
+        self.parameter_sharing = self.policy_config.get('parameter_sharing', False)
         self.agent_name_list = list(self.policy_optimizer.keys())
         # ---------- 这个critic_name_list具体来说，如果说是中心化训练，就是centralized_critic ------
         self.critic_name = list(self.critic_optimizer.keys())[0]

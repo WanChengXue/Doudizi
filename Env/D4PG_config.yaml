@@ -54,6 +54,7 @@ policy_config:
   # ------ 使用categorical critic net -------
   categorical_critic_net: True
   algorithm: Independent_D4PG
+  agent_name: 'd4pg_agent'
   # ---- 这个变量表示要不要使用target网络 ------
   using_target_network: True
   # Pytorch DDP相关
@@ -79,21 +80,14 @@ policy_config:
   tensorboard_folder: "Tensorboard_log"
   # ----- 只有一个智能体，显然是参数共享和同质化都是True ---------
   parameter_sharing: &parameter_sharing False
-  homogeneous_agent: &homogeneous_agent False
   # ------ 这个地方采用的cosineannealingwarmrestarts()学习率调整 ------------
   T_zero: 5
-  # -------- 定义探索策略 ------
-  ou_enabled: True
-  ou_config:
-    action_dim: &action_dim 8
-    action_low: -1
-    action_high: 1
   # -------- 定义replay buffer相关的参数 -------
   priority_replay_buffer: True
   replay_buffer_config:
     buffer_name: prioritized_replay_buffer
     # prioritized_replay_buffer
-    capacity: 50000
+    capacity: 20000
     batch_size: *batch_size
     # ----- 定义alpha和beta两个超参数 -------
     alpha: 0.6
@@ -116,23 +110,32 @@ policy_config:
     value_max: &value_max 2
   # ------- 智能体相关的参数 ----------
   agent:
-    policy:
-      default:
+    # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
+    default:
+      policy:
         learning_rate: 1e-5
-        state_dim: 28
-        action_dim: *action_dim
+        state_dim: &state_dim 28
+        action_dim: &action_dim 8 
         model_name: 'FC_model'
         model_type: 'policy'
 
-    critic:
-      default:
-        learning_rate: 1e-5
-        model_name: 'FC_model'
-        model_type: 'categorical_critic'
-        hidden_dim: 400
-        n_atoms: *n_atoms
-        value_min: *value_min
-        value_max: *value_max
-     
+      critic:
+          learning_rate: 1e-5
+          model_name: 'FC_model'
+          model_type: 'categorical_critic'
+          hidden_dim: 400
+          state_dim: *state_dim
+          action_dim: *action_dim
+          n_atoms: *n_atoms
+          value_min: *value_min
+          value_max: *value_max
+
+      # -------- 定义探索策略 ------
+      ou_enabled: True
+      action_dim: *action_dim
+      action_low: 0
+      action_high: 1
+  # --------- 如果出现了中心化的critic,优先级和agent并列 ----------
+
 
 

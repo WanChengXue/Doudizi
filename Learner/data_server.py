@@ -44,7 +44,8 @@ class data_receiver_server(base_server):
         self.start_data_saved = self.config_dict.get('data_save_start', False)
         self.priority_replay_buffer = self.policy_config.get('priority_replay_buffer', False)
         # ----------- 这个变量表示的是这是不是多智能体合作场景，默认为False -------------
-        self.corporative_scenario = self.config_dict['env'].get('corporative_scenario', False)
+        self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
+        self.agent_name_list = self.config_dict['env']['agent_name_list']
         self._parse_server_id_and_connect_server()
         self._define_performance_parameters()
         if not self.read_data_from_local_machine:
@@ -52,10 +53,10 @@ class data_receiver_server(base_server):
         
     def _create_replay_buffer(self):
         self.replay_buffer = dict()
-        if self.corporative_scenario:
+        if self.multiagent_scenario:
             self.replay_buffer = getattr(data_utils, self.policy_config['replay_buffer_config']['buffer_name'])(self.policy_config['replay_buffer_config'])
         else:
-            for agent_name in list(self.policy_config['agent']['policy'].keys()):
+            for agent_name in self.agent_name_list:
                 self.replay_buffer[agent_name]  = getattr(data_utils, self.policy_config['replay_buffer_config']['buffer_name'])(self.policy_config['replay_buffer_config'])
         self.data_receive_count = 0
 
@@ -151,7 +152,7 @@ class data_receiver_server(base_server):
                     self._save_data(compressed_data)
                 pickled_data = pickle.loads(frame.decompress(compressed_data))
                 # ---------- 这个返回来的pickled_data, 如果是多智能体场景，则不需要给这个数据区分 ---------
-                if self.corporative_scenario:
+                if self.multiagent_scenario:
                     self.replay_buffer.append_data(pickled_data)
                     current_sample_recv_number += len(pickled_data)
                 else:
@@ -161,7 +162,7 @@ class data_receiver_server(base_server):
 
             # ---------- 解析完此次接收，看看到底流入了多少的数据量 -----------
             self.recv_data_number += current_sample_recv_number
-            if self.corporative_scenario:
+            if self.multiagent_scenario:
                 self.logger.info("------------- 本次接收数据数目为：{},此时buffer中的数据为:{} ------------".format(current_sample_recv_number, self.replay_buffer.buffer_size))
             else:
                 for key in self.replay_buffer:
@@ -189,7 +190,7 @@ class data_receiver_server(base_server):
 
     def _sample_data_from_replay_buffer(self):
         # ----------- 此处随机采样出一个batch的训练数据 ----------------
-        if self.corporative_scenario:
+        if self.multiagent_scenario:
             if self.priority_replay_buffer:
                 self.sample_index, sample_data_dict = self.replay_buffer.sample_data()
             else:
@@ -218,7 +219,7 @@ class data_receiver_server(base_server):
         # ----------- 数据转移到plasma client里面去 -------------------
         sample_data_dict = self._sample_data_from_replay_buffer()
         if self.global_rank == 0:
-            if self.corporative_scenario:
+            if self.multiagent_scenario:
                 self.logger.info("================= 采样时间为 {}, batch size为 {}, 目前buffer的数据为 {} =============".format(time.time()-start_time, self.batch_size, self.replay_buffer.buffer_size))
             else:
                 for key in self.replay_buffer:
@@ -231,7 +232,7 @@ class data_receiver_server(base_server):
             # --------------- 如果说使用了优先级replay buffer，则需要获取更新之后的权重信息，获取learner塞进到plasma server的数据 ----
             weight_data = self.plasma_client.get(self.weight_plasma_id)
             # --------------- 如果是独立场景，则这个weight_data是一个字典，否则，这个weight_data就是一个向量 -----------
-            if self.corporative_scenario:
+            if self.multiagent_scenario:
                 self.replay_buffer.update_priorities(self.sample_index, weight_data)
             else:
                 for key in weight_data:
@@ -242,7 +243,7 @@ class data_receiver_server(base_server):
 
     def full_buffer(self):
         # --------- 如果buffer满了二十分之一就可以训练了 ---------
-        if self.corporative_scenario:
+        if self.multiagent_scenario:
             return self.replay_buffer.full_buffer
         else:
             for key in self.replay_buffer:

@@ -20,7 +20,7 @@ sys.path.append(root_path)
 
 
 from Learner.base_server import base_server
-from Utils.utils import create_folder, setup_logger
+from Utils.utils import setup_logger
 from Utils.model_utils import serialize_model, deserialize_model, create_model
 from Utils.utils import generate_plasma_id, generate_plasma_id_for_PEB
 from Utils.data_utils import convert_data_format_to_torch_trainig
@@ -48,9 +48,9 @@ class learner_server(base_server):
         self.logger.info('================ 开始初始化模型 ===========')
         # ------------ 默认是多机多卡，然后这个local rank表示的是某台机器上卡的相对索引 ----------
         self.machine_index = self.global_rank // self.policy_config['device_number_per_machine']
+        self.agent_name_list = self.config_dict['env']['agent_name_list']
         self.parameter_sharing = self.policy_config['parameter_sharing']
-        self.homogeneous_agent = self.policy_config['homogeneous_agent']
-        self.training_type = self.policy_config['training_type']
+        self.use_centralized_critic = self.policy_config['use_centralized_critic']
         self.load_data_from_model_pool = self.config_dict.get('load_data_from_model_pool', False)
         self.priority_replay_buffer = self.policy_config.get('priority_replay_buffer', False)
         self.logger.info("============== global rank {}开始创建模型 ==========".format(self.global_rank))
@@ -100,49 +100,76 @@ class learner_server(base_server):
             plasma_id = plasma.ObjectID(generate_plasma_id_for_PEB(self.machine_index, self.local_rank, i))
             self.plasma_id_for_weight_queue.put(plasma_id)
     
+
     def construct_target_model(self):
         # --------- 这个只有那种需要创建target网络的算法，比如说MADDPG，DQN等，才需要进入 ----------
         self.target_model = dict()
-        for model_type in self.policy_config['agent'].keys():
-            self.target_model[model_type] = dict()
-            for agent_name in self.policy_config['agent'][model_type].keys():
-                model_config  = deepcopy(self.policy_config['agent'][model_type][agent_name])
-                self.target_model[model_type][agent_name] = create_model(model_config)
-                # ------------- target model参数copy active model -------------
-                self.target_model[model_type][agent_name].load_state_dict(self.model[model_type][agent_name].state_dict())
-            
+        for agent_name in self.model.keys():
+            if isinstance(self.model[agent_name], dict):
+                self.target_model[agent_name] = dict()
+                for model_type in self.model[agent_name].keys():
+                    model_config = deepcopy(self.policy_config['agent'][agent_name][model_type])
+                    self.target_model[agent_name][model_type] = create_model(model_config)
+                    # ------------- target model参数copy active model -------------
+                    self.target_model[agent_name][model_type].load_state_dict(self.model[agent_name][model_type].state_dict())
+            else:
+                model_config = deepcopy(self.policy_config['agent'][agent_name])
+                self.target_model[agent_name] = create_model(model_config)
+                self.target_model[agent_name].load_state_dict(self.model[agent_name].state_dict())
+                
+
     def construct_model(self):
         self.optimizer = {}
         self.model = {}
         self.scheduler = {}
         # ------- 这个字典只用来保存模型路径，只有在测试的时候会用到 -------------------
         self.model_path = {}
-        for model_type in self.policy_config['agent'].keys():
-            self.optimizer[model_type] = dict()
-            self.model[model_type] = dict()
-            self.scheduler[model_type] = dict()
-            self.model_path[model_type] = dict()
-            for agent_name in self.policy_config['agent'][model_type].keys():
-                model_config = deepcopy(self.policy_config['agent'][model_type][agent_name])
-                self.model[model_type][agent_name] = create_model(model_config)
-                # ------- 如果在原有的基础上进行RL的训练，就需要载入预训练模型了 ---------
-                if self.load_data_from_model_pool and model_type == 'policy':
-                    self.logger.info('----------- 载入预训练模型，模型的保存路径为:{} ----------'.format(self.policy_config['agent'][model_type][agent_name]['model_path']))
-                    deserialize_model(self.model[model_type][agent_name], self.policy_config['agent'][model_type][agent_name]['model_path'])
-                self.optimizer[model_type][agent_name] = torch.optim.Adam(self.model[model_type][agent_name].parameters(), lr=float(self.policy_config['agent'][model_type][agent_name]['learning_rate']))
-                self.scheduler[model_type][agent_name] = CosineAnnealingWarmRestarts(self.optimizer[model_type][agent_name], self.policy_config['T_zero'])
-        if self.policy_config.get('using_target_network', False):
-            self.construct_target_model()
+        if self.parameter_sharing:
+            # ---------TODO 如果使用参数共享策略,所有的智能体用同一个对象 -----------
+            pass
+        else:
+            for agent_name in self.agent_name_list:
+                self.optimizer[agent_name] = dict()
+                self.model[agent_name] = dict()
+                self.scheduler[agent_name] = dict()
+                self.model_path[agent_name] = dict()
+                for model_type in self.policy_config['agent'][agent_name].keys():
+                    if model_type in ['policy', 'critic']:
+                        model_config = deepcopy(self.policy_config['agent'][agent_name][model_type])
+                        self.model[agent_name][model_type] = create_model(model_config)
+                        # ------- 如果在原有的基础上进行RL的训练，就需要载入预训练模型了 ---------
+                        if self.load_data_from_model_pool and model_type == 'policy':
+                            self.logger.info('----------- 载入预训练模型，模型的保存路径为:{} ----------'.format(model_config['model_path']))
+                            deserialize_model(self.model[agent_name][model_type], model_config['model_path'])
+                        self.optimizer[agent_name][model_type] = torch.optim.Adam(self.model[agent_name][model_type].parameters(), lr=float(model_config['learning_rate']))
+                        self.scheduler[agent_name][model_type] = CosineAnnealingWarmRestarts(self.optimizer[agent_name][model_type], self.policy_config['T_zero'])
+            if self.use_centralized_critic:
+                model_config = deepcopy(self.policy_config['agent']['centralized_critic'])
+                self.model['centralized_critic'] = create_model(model_config)
+                self.optimizer['centralized_critic'] = torch.optim.Adam(self.model['centralized_critic'].parameters(), lr=float(model_config['learning_rate']))
+                self.scheduler['centralized_critic'] = CosineAnnealingWarmRestarts(self.optimizer['centralized_critic'], self.policy_config['T_zero'])
+
+            if self.policy_config.get('using_target_network', False):
+                self.construct_target_model()
 
         # ----------- 训练模式, 使用DDP进行包装  --------------
         dist.init_process_group(init_method=self.policy_config["ddp_root_address"], backend="nccl",rank=self.global_rank, world_size=self.world_size)
         # ----- 把模型放入到设备上 ---------
-        for model_type in self.model: 
-            for sub_model in self.model[model_type]:
-                self.model[model_type][sub_model].to(self.local_rank).train()
-                if self.policy_config.get('using_target_network', False):
-                    self.target_model[model_type][sub_model].to(self.local_rank)
-                self.model[model_type][sub_model] = DDP(self.model[model_type][sub_model], device_ids=[self.local_rank])
+        if self.parameter_sharing:
+            pass
+        else:
+            for agent_name in self.agent_name_list:
+                if isinstance(self.model[agent_name], dict):
+                    for model_type in self.model[agent_name].keys():
+                        self.model[agent_name][model_type].to(self.local_rank).train()
+                        if self.policy_config.get('using_target_network', False):
+                            self.target_model[agent_name][model_type].to(self.local_rank)
+                        self.model[agent_name][model_type] = DDP(self.model[agent_name][model_type], device_ids=[self.local_rank])
+                else:
+                    self.model[agent_name].to(self.local_rank).train()
+                    if self.policy_config.get('using_target_network', False):
+                        self.target_model[agent_name].to(self.local_rank)
+                    self.model[agent_name] = DDP(self.model[agent_name], device_ids=[self.local_rank])
         torch.manual_seed(194864146)
         self.logger.info('----------- 完成模型的创建 ---------------')
         # ----------- 调用更新算法 ---------------
@@ -201,7 +228,7 @@ class learner_server(base_server):
         current_state = env.reset()
         while True:
             with torch.no_grad():
-                action = self.model['policy']['default'](torch.FloatTensor(current_state).unsqueeze(0).to(0)).cpu().squeeze().numpy()
+                action = self.model['default']['policy'](torch.FloatTensor(current_state).unsqueeze(0).to(0)).cpu().squeeze().numpy()
             next_state, instant_reward, done, _  = env.step(action)
             reward_list.append(instant_reward)
             current_state = next_state

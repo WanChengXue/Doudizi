@@ -30,19 +30,14 @@ class Independent_D4PGTrainer:
         self.value_max = self.policy_config['value_max']
         self.value_min = self.policy_config['value_min']
         self.value_delta = (self.value_max - self.value_min) / (self.n_atoms-1)
-        self.policy_net = model['policy']
-        self.critic_net = model['critic']
-        self.target_policy_net = target_model['policy']
-        self.target_critic_net = target_model['critic']
-        self.policy_optimizer = optimizer['policy']
-        self.critic_optimizer = optimizer['critic']
-        self.policy_scheduler = scheduler['policy']
-        self.critic_scheduler = scheduler['critic']
+        # --------- 使用的是独立的D4PG算法,因此是没有中心化的critic这个东西 --------
+        self.agent_name_list = list(model.keys())
+        self.model = model
+        self.target_model = target_model
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         # ------------ 如果不采用参数共享的话，显然是一个智能体一个策略网络了 ----------
-        self.parameter_sharing = self.policy_config.get('parameter_sharing', True)
-        self.agent_name_list = list(self.policy_optimizer.keys())
-        # ---------- 这个critic_name_list在独立的DDPG训练中，肯定是一个列表了 -----------
-        self.critic_name_list = list(self.critic_optimizer.keys())
+        self.parameter_sharing = self.policy_config.get('parameter_sharing', False)
         self.gamma = self.policy_config['gamma']
         # ------- 这个n_step表示的是DQN拓展中，n-step Q ------
         self.n_step = self.policy_config['n_step']
@@ -77,85 +72,80 @@ class Independent_D4PGTrainer:
         critic_info = dict()
         agent_policy_info = dict()
         batch_td_error = dict()
-        for agent_index, key in enumerate(training_data):
-            current_agent_obs = training_data[key]['current_agent_obs']
-            agent_current_action = training_data[key]['actions']
-            next_agent_obs = training_data[key]['next_agent_obs']
-            done = training_data[key]['done']
-            instant_reward = training_data[key]['instant_reward']
+        for agent_name in training_data.keys():
+            current_agent_obs = training_data[agent_name]['current_agent_obs']
+            agent_current_action = training_data[agent_name]['actions']
+            next_agent_obs = training_data[agent_name]['next_agent_obs']
+            done = training_data[agent_name]['done']
+            instant_reward = training_data[agent_name]['instant_reward']
             with torch.no_grad():
             # ----------- 计算next_action ------------------ 
                 if self.parameter_sharing:
-                    policy_agent_name = self.agent_name_list[0]
-                    critic_agent_name = self.critic_name_list[0]
+                    pass 
                 else:
-                    policy_agent_name = self.agent_name_list[agent_index]
-                    critic_agent_name = self.critic_name_list[agent_index]
-                agent_next_action = self.target_policy_net[policy_agent_name](next_agent_obs)        
-                next_q_distribution = self.target_critic_net[critic_agent_name](next_agent_obs, agent_next_action)
-                projection_distribution_value = self.distr_projection(next_q_distribution, instant_reward, done)
+                    agent_next_action = self.target_model[agent_name]['policy'](next_agent_obs)        
+                    next_q_distribution = self.target_model[agent_name]['critic'](next_agent_obs, agent_next_action)
+                    projection_distribution_value = self.distr_projection(next_q_distribution, instant_reward, done)
             # ------- 计算current state distribution -----
-            current_q_distribution = self.critic_net[critic_agent_name](current_agent_obs, agent_current_action)
-            # critic_loss_vector = torch.sum(self.critic_loss_fn(current_q_distribution, projection_distribution_value), -1).unsqueeze(-1)
+            current_q_distribution = self.model[agent_name]['critic'](current_agent_obs, agent_current_action)
             critic_loss_vector = torch.sum(-torch.log(current_q_distribution) * projection_distribution_value, 1)
             if priority_weights is None:
                 agent_critic_loss = torch.mean(critic_loss_vector)
             else:
-                batch_td_error[critic_agent_name] = torch.abs(critic_loss_vector).data.cpu().numpy() + 1e-4
-                agent_critic_loss = torch.mean(critic_loss_vector * priority_weights[key])
-            self.critic_optimizer[critic_agent_name].zero_grad()
+                batch_td_error[agent_name] = torch.abs(critic_loss_vector).data.cpu().numpy() + 1e-4
+                agent_critic_loss = torch.mean(critic_loss_vector * priority_weights[agent_name])
+            self.optimizer[agent_name]['critic'].zero_grad()
             agent_critic_loss.backward()
-            # critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic_net[critic_agent_name].parameters(), self.max_grad_norm)
+            critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['critic'].parameters(), self.max_grad_norm)
             critic_max_grads = {}
-            for name, value in self.critic_net[critic_agent_name].named_parameters():
+            for name, value in self.model[agent_name]['critic'].named_parameters():
                 if value.requires_grad:
                     critic_max_grads[name] = torch.max(value.grad).item()
-            # critic_info['critic_grad_norm'] = critic_grad_norm.item()
+            critic_info['critic_grad_norm'] = critic_grad_norm.item()
             critic_info['Layer_max_grad'] = critic_max_grads
             critic_info['critic_loss'] = agent_critic_loss.item()
-            # Update priorities in buffer
-            self.critic_optimizer[critic_agent_name].step()
-            # self.critic_scheduler[critic_agent_name].step()
+            self.optimizer[agent_name]['critic'].step()
+            self.scheduler[agent_name]['critic'].step()
             # --------------- 开始更新policy网络 -------------
-            current_action_value = self.policy_net[policy_agent_name](current_agent_obs)
-            current_q_distribution = self.critic_net[critic_agent_name](current_agent_obs, current_action_value)
+            current_action_value = self.model[agent_name]['policy'](current_agent_obs)
+            current_q_distribution = self.model[agent_name]['critic'](current_agent_obs, current_action_value)
             try:
                 # ---------- DDP包裹了模型之后的调用方式 ------------
-                current_q_value = - self.critic_net[critic_agent_name].module.distribution_to_value(current_q_distribution)
+                current_q_value = - self.model[agent_name]['critic'].module.distribution_to_value(current_q_distribution)
             except:
-                current_q_value = - self.critic_net[critic_agent_name].distribution_to_value(current_q_distribution)
+                current_q_value = - self.model[agent_name]['critic'].distribution_to_value(current_q_distribution)
             agent_policy_loss = torch.mean(current_q_value)
-            self.policy_optimizer[policy_agent_name].zero_grad()
+            self.optimizer[agent_name]['policy'].zero_grad()
             agent_policy_loss.backward()
             agent_policy_max_grads = dict()
-            for name, value in self.policy_net[policy_agent_name].named_parameters():
+            for name, value in self.model[agent_name]['policy'].named_parameters():
                 if value.requires_grad:
                     agent_policy_max_grads[name] = torch.max(value.grad).item()
-            self.policy_optimizer[policy_agent_name].step()
-            # agent_policy_grad_norm = torch.nn.utils.clip_grad_norm_(self.policy_net[policy_agent_name].parameters(), self.max_grad_norm)
-            # self.policy_scheduler[policy_agent_name].step()
+            agent_policy_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['policy'].parameters(), self.max_grad_norm)
             agent_policy_info['Layer_max_grads'] = agent_policy_max_grads
             agent_policy_info['Policy_loss'] = agent_policy_loss.item()
-            # agent_policy_info['Policy_grad_norm'] = agent_policy_grad_norm.item()
+            agent_policy_info['Policy_grad_norm'] = agent_policy_grad_norm.item()
             agent_policy_info['Q_value_std'] = torch.std(current_q_value).item()
+            self.scheduler[agent_name]['policy'].step()
+            self.optimizer[agent_name]['policy'].step()
             # ----------- 字典合并 ------------    
-            if 'Model_policy_{}'.format(policy_agent_name) not in info_dict.keys():
+            if 'Model_policy_{}'.format(agent_name) not in info_dict.keys():
                 # --------- 如果使用同构网络，那么critic和policy都是只有一个，不同构，那都是有多个 ------
-                info_dict['Model_policy_{}'.format(policy_agent_name)] = agent_policy_info
-                info_dict['Model_critic_{}'.format(critic_agent_name)] = critic_info
+                info_dict['Model_policy_{}'.format(agent_name)] = agent_policy_info
+                info_dict['Model_critic_{}'.format(agent_name)] = critic_info
             else:
                 # ----------- 字典合并 ------------
-                info_dict['Model_policy_{}'.format(policy_agent_name)] = merge_dict(info_dict['Model_policy_{}'.format(policy_agent_name)], agent_policy_info)
-                info_dict['Model_critic_{}'.format(critic_agent_name)] = merge_dict(info_dict['Model_critic_{}'.format(critic_agent_name)], critic_info)
-        # --------- 最后，如果说使用参数共享用策略，就需要对这个info_dict中的策略部分的key进行平均化处理 ------------
-        if self.parameter_sharing:
-            info_dict['Model_policy_{}'.format(self.agent_name_list[0])] = mean_dict(info_dict['Model_policy_{}'.format(self.agent_name_list[0])])
-            info_dict['Model_critic_{}'.format(self.critic_name_list[0])] = mean_dict(info_dict['Model_critic_{}'.format(self.critic_name_list[0])])
+                info_dict['Model_policy_{}'.format(agent_name)] = merge_dict(info_dict['Model_policy_{}'.format(agent_name)], agent_policy_info)
+                info_dict['Model_critic_{}'.format(agent_name)] = merge_dict(info_dict['Model_critic_{}'.format(agent_name)], critic_info)
+        # # --------- 最后，如果说使用参数共享用策略，就需要对这个info_dict中的策略部分的key进行平均化处理 ------------
+        # if self.parameter_sharing:
+        #     info_dict['Model_policy_{}'.format(self.agent_name_list[0])] = mean_dict(info_dict['Model_policy_{}'.format(self.agent_name_list[0])])
+        #     info_dict['Model_critic_{}'.format(self.critic_name_list[0])] = mean_dict(info_dict['Model_critic_{}'.format(self.critic_name_list[0])])
         # ------------- 将active model和target model进行同步操作 ----------------
-        for agent_name in self.policy_net.keys():
-            soft_update(self.policy_net[agent_name], self.target_policy_net[agent_name], self.tau)
-        for critic_name in self.critic_net.keys():
-            soft_update(self.critic_net[critic_name], self.target_critic_net[critic_name], self.tau)
+        for agent_name in self.agent_name_list:
+            for model_type in self.model[agent_name].keys():
+                soft_update(self.model[agent_name][model_type], self.target_model[agent_name][model_type], self.tau)
+
         if priority_weights is None:
             return info_dict
         else:

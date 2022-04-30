@@ -1,5 +1,6 @@
 import pickle
 import os
+from numpy import isin
 import zmq
 import time
 import pathlib
@@ -12,12 +13,14 @@ class fetcher:
         self.config_dict = config_dict
         self.policy_config = self.config_dict['policy_config']
         self.policy_name = self.config_dict['policy_name']
+        self.agent_name_list = self.config_dict['env']['agent_name_list']
         self.config_server_address = self.config_dict['config_server_address']
         self.statistic = statistic
         self.policy_type = self.policy_config['policy_type']
         self.process_uid = process_uid
         self.logger = logger
-        
+        self.model_type = ['policy', 'critic']
+        self.use_centralized_critic = self.config_dict['policy_config']['use_centralized_critic']
         # ------------ 构建模型请求套接字 ---------------------
         self.latest_model_requester = self.context.socket(zmq.REQ)
         self.latest_model_requester.connect("tcp://{}:{}".format(self.config_dict['config_server_address'], self.config_dict['config_server_model_to_worker']))
@@ -39,17 +42,25 @@ class fetcher:
 
     def construct_latest_model_path(self):
         self.model_path = dict()
-        for model_type in self.policy_config['agent'].keys():
-            self.model_path[model_type] = dict()
-            for model_name in self.policy_config['agent'][model_type].keys():
-                self.model_path[model_type][model_name] = self.worker_folder_path/'Download_model'/("{}.model".format((self.process_uid +'_{}_{}_'+self.policy_name).format(model_type, model_name)))
+        for agent_name in self.agent_name_list:
+            self.model_path[agent_name] = dict()
+            for model_type in self.policy_config['agent'][agent_name].keys():
+                if model_type in self.model_type:
+                    self.model_path[agent_name][model_type] = self.worker_folder_path/'Download_model'/("{}.model".format((self.process_uid +'_{}_{}_'+self.policy_name).format(agent_name, model_type)))
+        # ---------- 如果在多智能体的场景中，需要额外获取中心化的critic网路 ------
+        if self.use_centralized_critic:
+            self.model_path['centralized_critic'] = self.worker_folder_path/'Download_model'/("{}.model".format(self.process_uid +'_centralized_critic_'+self.policy_name))
         self.logger.info("---------------- policy fetcher将最新的模型存放的地方为: {} ----------------".format(self.model_path))
 
+
     def _remove_exist_model(self):
-        for model_type in self.policy_config['agent'].keys():
-            for model_name in  self.policy_config['agent'][model_type].keys():
-                if os.path.exists(self.model_path[model_type][model_name]):
-                    os.remove(self.model_path[model_type][model_name])
+        for agent_name in self.agent_name_list:
+            for model_type in self.model_path[agent_name].keys():
+                if os.path.exists(self.model_path[agent_name][model_type]):
+                    os.remove(self.model_path[agent_name][model_type])
+        if self.use_centralized_critic:
+            os.remove(self.model_path['centralized_critic'])
+
 
     def _get_model(self):
         # ----------- 这个函数是用来获取最新的模型 ---------------
@@ -69,28 +80,40 @@ class fetcher:
             self.logger.info('------------- 完成模型下载 ----------------')
             return model_info
 
+
     def _download_model(self, model_info):
         # --------- 这个函数表示根据model_info这个dict，从指定的路径下载模型 -----------
         self._remove_exist_model()
-        for model_type in model_info['url'].keys():
-            for model_name in model_info['url'][model_type].keys():
-                model_url = model_info['url'][model_type][model_name]
-                saved_path = self.model_path[model_type][model_name]
-                # ------------ 为了避免请求http server过于频繁 ----------
-                while True:
-                    try:
-                        res = requests.get(model_url)
-                        with open(saved_path, 'wb') as f:
-                            f.write(res.content)
-                        break
-                    except:
-                        self.logger.info("---------- Connection refused by the server.. --------")
-                        time.sleep(2)
-                        self.logger.info("------- Was a nice sleep, now let me continue... -----")
+        for agent_name in model_info['url'].keys():
+            if isinstance(model_info['url'][agent_name], dict):
+                for model_type in model_info['url'][agent_name]:
+                    model_url = model_info['url'][agent_name][model_type]
+                    saved_path = self.model_path[agent_name][model_type]
+                    # ------------ 为了避免请求http server过于频繁 ----------
+                    self._download_single_mdel(model_url, saved_path)
+            else:
+                model_url = model_info['url'][agent_name]
+                saved_path = self.model_path[agent_name]
+                self._download_single_mdel(model_url, saved_path)
+
+
+    def _download_single_mdel(self, model_url, saved_path):
+        while True:
+            try:
+                res = requests.get(model_url)
+                with open(saved_path, 'wb') as f:
+                    f.write(res.content)
+                break
+            except:
+                self.logger.info("---------- Connection refused by the server.. --------")
+                time.sleep(2)
+                self.logger.info("------- Was a nice sleep, now let me continue... -----")
+
 
     def reset(self):
         model_info = self.step()
         return model_info
+
 
     def step(self):
         if time.time() < self.next_model_update_time:
@@ -104,7 +127,10 @@ class fetcher:
                 # ------------- 统计模型的更新时间 ----------------
                 self.statistic.append("sampler/model_update_interval/{}".format(self.policy_name), model_info['time_stamp']-self.current_model_time_stamp)
                 self.current_model_time_stamp = model_info['time_stamp']
-            return model_info
+                return self.model_path
+            else:
+                return None
+
 
 
     
