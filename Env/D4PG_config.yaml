@@ -83,9 +83,9 @@ policy_config:
   # ------ 这个地方采用的cosineannealingwarmrestarts()学习率调整 ------------
   T_zero: 5
   # -------- 定义replay buffer相关的参数 -------
-  priority_replay_buffer: True
+  priority_replay_buffer: False
   replay_buffer_config:
-    buffer_name: prioritized_replay_buffer
+    buffer_name: data_buffer
     # prioritized_replay_buffer
     capacity: 20000
     batch_size: *batch_size
@@ -106,21 +106,21 @@ policy_config:
     # -------- soft-update parameter ----
     tau: 1e-3
     n_atoms: &n_atoms 51
-    value_min: &value_min -2
-    value_max: &value_max 2
+    value_min: &value_min -10
+    value_max: &value_max 10
   # ------- 智能体相关的参数 ----------
   agent:
     # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
     default:
       policy:
-        learning_rate: 1e-5
+        learning_rate: 1e-4
         state_dim: &state_dim 28
         action_dim: &action_dim 8 
         model_name: 'FC_model'
         model_type: 'policy'
 
       critic:
-          learning_rate: 1e-5
+          learning_rate: 1e-4
           model_name: 'FC_model'
           model_type: 'categorical_critic'
           hidden_dim: 400
@@ -133,7 +133,7 @@ policy_config:
       # -------- 定义探索策略 ------
       ou_enabled: True
       action_dim: *action_dim
-      action_low: 0
+      action_low: -1
       action_high: 1
   # --------- 如果出现了中心化的critic,优先级和agent并列 ----------
 
