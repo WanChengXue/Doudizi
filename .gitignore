@@ -6,3 +6,5 @@
 /Utils/__pycache__
 /Pretrained_model
 nohup.out
+*.model
+*.pickle

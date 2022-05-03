@@ -79,7 +79,7 @@ class learner_server(base_server):
         if self.priority_replay_buffer:
             self.create_plasma_server_for_prioritized_replay_buffer()
         # ------------- 连接plasma 服务，这个地方需要提前启动这个plasma服务，然后让client进行连接 -------------
-        self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
+        # self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
         # ------------- 这个列表是等待数据的时间 -------------
         self.wait_data_times = []
         # ------------- 定义一个变量，观察在一分钟之内参数更新了的次数 -------------
@@ -88,6 +88,8 @@ class learner_server(base_server):
         self.training_time_list = []
         # ------------- 定义一下模型热更新的时间 -------------
         self.warm_up_time = time.time() + self.config_dict['warmup_time']
+        # ------------- 定义一个列表,记录一下数据从numpy变成tensor需要的时间 ---------
+        self.convert_data_time = []
         # ------------- 定义一个变量，这个是每过一分钟，就朝着log server发送数据的 -------------
         self.next_check_time = time.time()
         self.next_send_log_time = time.time()
@@ -117,7 +119,36 @@ class learner_server(base_server):
                 self.target_model[agent_name] = create_model(model_config)
                 self.target_model[agent_name].load_state_dict(self.model[agent_name].state_dict())
             
+    def load_model(self, model, name):
+        if name == 'policy':
+            policy_state_dict = torch.load('actor.model')
+            # ---- 添加一个额外的变量 -----
+            policy_state_dict['log_alpha'] = torch.tensor([0.0]).to(0)
+            model.load_state_dict(policy_state_dict)
+        elif name == 'critic':
+            critic_state_dict = torch.load('critic_1.model')
+            model.load_state_dict(critic_state_dict)
+        elif name == 'double_critic':
+            double_critic_state_dcit = torch.load('critic_2.model')
+            model.load_state_dict(double_critic_state_dcit)
+        else:
+            pass 
 
+    def load_target_model(self, model, name):
+        if name == 'policy':
+            policy_state_dict = torch.load('actor.model')
+            # ---- 添加一个额外的变量 -----
+            policy_state_dict['log_alpha'] = torch.tensor([0.0]).to(0)
+            model.load_state_dict(policy_state_dict)
+        elif name == 'critic':
+            critic_state_dict = torch.load('critic_1_target.model')
+            model.load_state_dict(critic_state_dict)
+        elif name == 'double_critic':
+            double_critic_state_dcit = torch.load('critic_2_target.model')
+            model.load_state_dict(double_critic_state_dcit)
+        else:
+            pass 
+        
     def construct_model(self):
         self.optimizer = {}
         self.model = {}
@@ -161,15 +192,19 @@ class learner_server(base_server):
                 if isinstance(self.model[agent_name], dict):
                     for model_type in self.model[agent_name].keys():
                         self.model[agent_name][model_type].to(self.local_rank).train()
+                        self.load_model(self.model[agent_name][model_type], model_type)
                         if self.policy_config.get('using_target_network', False):
                             self.target_model[agent_name][model_type].to(self.local_rank)
+                            self.load_target_model(self.target_model[agent_name][model_type], model_type)
                         self.model[agent_name][model_type] = DDP(self.model[agent_name][model_type], device_ids=[self.local_rank])
                 else:
                     self.model[agent_name].to(self.local_rank).train()
                     if self.policy_config.get('using_target_network', False):
                         self.target_model[agent_name].to(self.local_rank)
                     self.model[agent_name] = DDP(self.model[agent_name], device_ids=[self.local_rank])
-        torch.manual_seed(194864146)
+        # torch.manual_seed(194864146)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed(0)
         self.logger.info('----------- 完成模型的创建 ---------------')
         # ----------- 调用更新算法 ---------------
         algo_cls = get_algorithm_cls(self.policy_config['algorithm'])
@@ -197,8 +232,11 @@ class learner_server(base_server):
     def _training(self, training_batch):
         if time.time()>self.warm_up_time:
             if self.priority_replay_buffer:
+                data_convert_start_time = time.time()
                 torch_training_batch = convert_data_format_to_torch_trainig(training_batch[0],self.local_rank)
                 torch_weights_batch = convert_data_format_to_torch_trainig(training_batch[1], self.local_rank)
+                self.convert_data_time.append(time.time() - data_convert_start_time)
+
                 info, weight = self.algo.step(torch_training_batch, torch_weights_batch)
                 # --------- 把这个weight塞到plasma buffer里面 --------
                 weight_plasma_id = self.plasma_id_for_weight_queue.get()
@@ -207,7 +245,10 @@ class learner_server(base_server):
                 # --------- 更新buffer中的权重，再把这个plasma id塞回去 --------
                 self.plasma_id_for_weight_queue.put(weight_plasma_id)
             else:
+                data_convert_start_time = time.time()
                 torch_training_batch = convert_data_format_to_torch_trainig(training_batch,self.local_rank)
+                self.convert_data_time.append(time.time() - data_convert_start_time)
+
                 info = self.algo.step(torch_training_batch)
             self.logger.info("----------- 完成一次参数更新，更新的信息为 {} -------------".format(info))
             self.recursive_send(info, None, self.policy_name)
@@ -237,6 +278,21 @@ class learner_server(base_server):
         self.send_log({"result/test_reward_{}".format(self.policy_name): sum(reward_list)})
 
 
+    def test_training(self):
+        import pickle
+        data_file = open('data.pickle', 'rb')
+        data = pickle.load(data_file)
+        tensor_data = dict()
+        tensor_data['default'] = dict()
+        tensor_data['default']['current_agent_obs'] = data[0]
+        tensor_data['default']['actions'] = data[1]
+        tensor_data['default']['instant_reward'] = data[2]
+        tensor_data['default']['next_agent_obs'] = data[3]
+        tensor_data['default']['done'] = data[4]
+        sac_info_file = open('network_info', 'rb')
+        sac_data = pickle.load(sac_info_file)
+        self.algo.step(tensor_data, sac_data)
+
     def training_and_publish_model(self):  
         start_time = time.time()
         selected_plasma_id = self.plasma_id_queue.get()
@@ -260,24 +316,35 @@ class learner_server(base_server):
                 self.send_log({"learner_server/model_update_times_per_min/{}".format(self.policy_name): self.training_steps_per_mins})
                 self.send_log({"learner_server/average_model_update_time_consuming_per_mins/{}".format(self.policy_name): sum(self.training_time_list)/self.training_steps_per_mins})
                 self.send_log({"learner_server/time_of_wating_data_per_mins/{}".format(self.policy_name): sum(self.wait_data_times)/self.training_steps_per_mins})
+                self.send_log({"learner_server/time_of_convert_data_per_mins/{}".format(self.policy_name): sum(self.convert_data_time) / self.training_steps_per_mins})
                 self.next_send_log_time += 60
                 self.training_steps_per_mins = 0
                 self.training_time_list = []
                 self.wait_data_times = []
+                self.convert_data_time = []
             if self.total_training_steps % self.policy_config['model_save_interval'] == 0:
                 self._save_model()
 
+
     def _save_model(self):
         timestamp = str(time.time())
-        for model_type in self.policy_config['agent'].keys():
-            for agent_name in self.policy_config['agent'][model_type].keys():
-                model_save_path = self.policy_config['saved_model_path'] + '/' + model_type + '_' + agent_name + '_'+ timestamp
-                torch.save(self.model[model_type][agent_name].state_dict(), model_save_path)
-
+        for agent_name in self.model.keys():
+            if isinstance(self.model[agent_name], dict):
+                for model_type in self.model[agent_name][model_type]:
+                    model_save_path = self.policy_config['saved_model_path'] + '/' + agent_name + '_' + model_type + '_' + timestamp
+                    torch.save(self.model[agent_name][model_type].state_dict(), model_save_path)
+            else:
+                model_save_path = self.policy_config['saved_model_path'] + '/' + agent_name + '_' + timestamp
+                torch.save(self.model[agent_name][model_type].state_dict(), model_save_path)
+        
     def run(self):
         self.logger.info("------------------ learner: {} 开始运行 ----------------".format(self.global_rank))
         while True:
             self.training_and_publish_model()
+            # start_time = time.time()
+            # self.test_training()
+            # print(time.time() - start_time)
+            # exit()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

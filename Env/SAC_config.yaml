@@ -31,7 +31,7 @@ config_server_http_port: 9003
 # ----- 这个变量是learner端使用，表示发布新模型的时间间隔 -----
 model_update_intervel: 3
 # --------- 这个变量是dataserver是从buffer里面采一个batch的数据放入到plasma client里面的时间间隔 -----------------
-data_server_sampling_interval: 5
+data_server_sampling_interval: 0
 # ------- 将worker端采样得到的数据保存到本地的文件夹 --------
 data_saved_folder: 'Data_saved'
 # ----- 要不要开启数据保存 ------
@@ -71,7 +71,7 @@ policy_config:
   # ---------- 定义最大采样长度 ----------
   max_trajectory_length: 1000
   # --------- 使用n step TD -----
-  n_step: &n_step 5
+  n_step: &n_step 1
   gamma: &gamma 0.99
   # ------ 设置模型的保存路径 ——----------
   # ======= 两个路径一个是最新的模型构成的模型池，另外一个是每训练若干次保存下来的模型 =====
@@ -87,7 +87,7 @@ policy_config:
   replay_buffer_config:
     buffer_name: data_buffer
     # prioritized_replay_buffer
-    capacity: 2000
+    capacity: 20000
     batch_size: *batch_size
     # ----- 定义alpha和beta两个超参数 -------
     alpha: 0.6
@@ -104,7 +104,7 @@ policy_config:
     centralized_critic: *centralized_critic
     seperate_critic: *seperate_critic
     # -------- soft-update parameter ----
-    tau: 1e-3
+    tau: 5e-3
     n_atoms: &n_atoms 51
     value_min: &value_min -10
     value_max: &value_max 10
@@ -116,7 +116,7 @@ policy_config:
     # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
     default:
       policy:
-        learning_rate: 1e-4
+        learning_rate: 3e-4
         state_dim: &state_dim 28
         action_dim: *action_dim
         model_name: 'SAC_model'
@@ -124,7 +124,7 @@ policy_config:
         adaptive_alpha: *adaptive_alpha
 
       critic:
-        learning_rate: 1e-4
+        learning_rate: 3e-4
         model_name: 'SAC_model'
         model_type: 'critic'
         hidden_dim: 400

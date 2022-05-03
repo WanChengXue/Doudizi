@@ -71,7 +71,7 @@ class SACTrainer:
                 pass 
             else:
                 try:
-                    next_action, log_action_prob = self.model[agent_name]['policy'].module.evaluate(next_agent_obs)
+                    next_action, log_action_prob = self.model[agent_name]['policy'].module.evaluate(next_agent_obs, self.sac_info['critic']['sample_data'])
                 except:
                     next_action, log_action_prob = self.model[agent_name]['policy'].evaluate(next_agent_obs)
                 Q_target_1 = self.target_model[agent_name]['critic'](next_agent_obs, next_action)
@@ -132,7 +132,7 @@ class SACTrainer:
         # ---------- 这个函数用来更新策略网络中的参数,首先计算在给定输入下,得到动作以及动作出现的概率 ---------
         policy_info_dict = dict()
         try:
-            actions_pred, log_prob = self.model[agent_name]['policy'].module.evaluate(current_agent_obs)
+            actions_pred, log_prob = self.model[agent_name]['policy'].module.evaluate(current_agent_obs, self.sac_info['actor']['sample_data'])
         except:
             actions_pred, log_prob = self.model[agent_name]['policy'].evaluate(current_agent_obs)
         # ------ 动作是通过重参数化得到的，mu + sigma * x ------------
@@ -171,8 +171,9 @@ class SACTrainer:
         torch.save(self.model[agent_name]['policy'].state_dict(), 'p_actor.model')
         self.info_dict[agent_name]['policy'] = policy_info_dict
 
-    def step(self, training_data, priority_weights = None):
+    def step(self, training_data, sac_info, priority_weights = None):
         self.info_dict = dict()
+        self.sac_info = sac_info
         for agent_name in training_data.keys():
             current_agent_obs = training_data[agent_name]['current_agent_obs']
             agent_current_action = training_data[agent_name]['actions']

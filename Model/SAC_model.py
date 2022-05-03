@@ -13,7 +13,9 @@ def hidden_init(layer):
 class Actor(nn.Module):
     def __init__(self, config):
         super(Actor, self).__init__()
-        self.seed = config.get('seed', random.randint(1,10000000))
+        # self.seed = config.get('seed', random.randint(1,10000000))
+        torch.manual_seed(0)
+        torch.cuda.manual_seed(0)
         # ---------- log_std_min, log_std_max分别表示变量方差的最小最大的log值 -------
         self.log_std_min = config.get('log_std_min', -20)
         self.log_std_max = config.get('log_std_max', 2)
@@ -51,12 +53,14 @@ class Actor(nn.Module):
         mu, log_std = self.forward(state)
         return mu
 
-    def evaluate(self, state, epsilon=1e-6):
+    def evaluate(self, state, sample_data = None, epsilon=1e-6):
         # ---------- 这个函数在训练时候启用,用来计算下一个状态的动作,以及出现的概率 --------
         mu, log_std = self.forward(state)
         std = log_std.exp()
         dist = Normal(mu, std)
         e = dist.rsample()
+        if sample_data is not None:
+            e = sample_data
         action = torch.tanh(e)
         log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
 
@@ -81,15 +85,15 @@ class Critic(nn.Module):
     
 def init_policy_net(config):
     model = Actor(config)
-    for m in model.modules():
-        if isinstance(m, (nn.Conv2d, nn.Linear)):
-            nn.init.xavier_uniform_(m.weight)
+    # for m in model.modules():
+    #     if isinstance(m, (nn.Conv2d, nn.Linear)):
+    #         nn.init.xavier_uniform_(m.weight)
     return model
 
 
 def init_critic_net(config):
     model = Critic(config)
-    for m in model.modules():
-        if isinstance(m, (nn.Conv2d, nn.Linear)):
-            nn.init.xavier_uniform_(m.weight)
+    # for m in model.modules():
+    #     if isinstance(m, (nn.Conv2d, nn.Linear)):
+    #         nn.init.xavier_uniform_(m.weight)
     return model

@@ -224,8 +224,9 @@ class data_receiver_server(base_server):
             else:
                 for key in self.replay_buffer:
                     self.logger.info("================= 操作buffer {}, 采样时间为 {}, batch size为 {}, 目前buffer的数据为 {} =============".format(key, time.time()-start_time, self.batch_size, self.replay_buffer[key].buffer_size))
+        start_convert_to_plasma_time = time.time()
         self.plasma_client.put(sample_data_dict, self.plasma_data_id, memcopy_threads=12)
-        self.logger.info("================= 讲数据从replay buffer中转移到plasma server中 =============")
+        self.logger.info("=============== 将采样出来的数据转移到plasma中耗费的时间为: {} =================".format(time.time() - start_convert_to_plasma_time))
         del sample_data_dict
         # ------------------------------------------------------------
         if self.priority_replay_buffer:
