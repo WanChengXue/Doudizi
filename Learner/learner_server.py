@@ -213,8 +213,8 @@ class learner_server(base_server):
             self.recursive_send(info, None, self.policy_name)
         else:
             self.logger.info("----------- 模型处于预热阶段，不更新参数 ----------")
-        if self.total_training_steps % 20 == 0:
-            self._test_model()
+        # if self.total_training_steps % 20 == 0:
+        #     self._test_model()
 
     def _test_model(self):
         import gym

@@ -59,7 +59,7 @@ policy_config:
   using_target_network: True
   # Pytorch DDP相关
   ddp_port: 50001
-  batch_size: &batch_size 1024
+  batch_size: &batch_size 128
   plasma_server_location: Plasma_server/plasma
   # ------- 这两个参数在训练RL的时候会使用到，如果都是False，说明actor和critic在一起 --------
   centralized_critic: &centralized_critic False
@@ -87,7 +87,7 @@ policy_config:
   replay_buffer_config:
     buffer_name: data_buffer
     # prioritized_replay_buffer
-    capacity: 20000
+    capacity: 2000
     batch_size: *batch_size
     # ----- 定义alpha和beta两个超参数 -------
     alpha: 0.6
@@ -109,6 +109,8 @@ policy_config:
     value_min: &value_min -10
     value_max: &value_max 10
     entropy_coefficient: 0.4
+    action_dim: &action_dim 8
+    adaptive_alpha: &adaptive_alpha True
   # ------- 智能体相关的参数 ----------
   agent:
     # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
@@ -116,9 +118,10 @@ policy_config:
       policy:
         learning_rate: 1e-4
         state_dim: &state_dim 28
-        action_dim: &action_dim 8 
+        action_dim: *action_dim
         model_name: 'SAC_model'
         model_type: 'policy'
+        adaptive_alpha: *adaptive_alpha
 
       critic:
         learning_rate: 1e-4

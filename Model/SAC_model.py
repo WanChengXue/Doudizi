@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.distributions import Normal
 import random
 import numpy as np
+from torch.nn.parameter import Parameter
 
 def hidden_init(layer):
     fan_in = layer.weight.data.size()[0]
@@ -24,6 +25,9 @@ class Actor(nn.Module):
 
         self.mu = nn.Linear(self.hidden_size, self.action_size)
         self.log_std_linear = nn.Linear(self.hidden_size, self.action_size)
+        if config.get('adaptive_alpha', False):
+            self.log_alpha = Parameter(torch.tensor([0.0]))
+
 
     def forward(self, state):
         x = torch.relu(self.fc1(state))

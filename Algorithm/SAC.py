@@ -33,13 +33,7 @@ class SACTrainer:
         self.critic_loss_2 = nn.MSELoss()
         self.max_grad_norm = self.policy_config['max_grad_norm']
         self.tau = float(self.policy_config['tau'])
-        # 如果说alpha是自适应学习,那么就不传入值
-        if 'entropy_coefficient' not in self.policy_config:
-            self.log_alpha = torch.tensor([0.0], requires_grad=True).to(self.rank)
-            self.alpha = self.log_alpha.exp().detach()
-            self.alpha_optimizer = torch.nn.optim.Adam(params = [self.log_alpha], lr=3e-4)
-        else:
-            self.alpha = self.policy_config.get('entropy_coefficient', 0.4)
+        self.action_dim = self.policy_config['action_dim']
 
 
     def distr_projection(self, next_distr, rewards, dones_mask):
@@ -149,7 +143,7 @@ class SACTrainer:
         agent_policy_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['policy'].parameters(), self.max_grad_norm)
         agent_policy_max_grads = dict()
         for name, value in self.model[agent_name]['policy'].named_parameters():
-            if value.requires_grad:
+            if value.requires_grad and value.grad is not None:
                 agent_policy_max_grads[name] = torch.max(value.grad).item()
         policy_info_dict['Layer_max_grads'] = agent_policy_max_grads
         policy_info_dict['Policy_loss'] = agent_actor_loss.item()
@@ -158,8 +152,14 @@ class SACTrainer:
         self.optimizer[agent_name]['policy'].step()
         self.scheduler[agent_name]['policy'].step()
         # ------------- 如果不采用固定的alpha,则需要进行
-        if 'entropy_coefficient' not in self.policy_config:
-            pass
+        if 'adaptive_alpha' in self.policy_config:
+            # ---------- 计算alpha loss ---------
+            alpha_loss = -torch.mean(self.model[agent_name]['policy'].module.log_alpha.exp() * (log_prob.detach() - self.action_dim))
+            self.optimizer[agent_name]['policy'].zero_grad()
+            alpha_loss.backward()
+            self.optimizer[agent_name]['policy'].step()
+            policy_info_dict['alpha_loss'] = alpha_loss.item()
+            
         self.info_dict[agent_name]['policy'] = policy_info_dict
 
     def step(self, training_data, priority_weights = None):
@@ -171,6 +171,14 @@ class SACTrainer:
             done = training_data[agent_name]['done']
             instant_reward = training_data[agent_name]['instant_reward']
             self.info_dict[agent_name] = dict()
+            # 如果说alpha是自适应学习,那么就不传入值
+            if 'adaptive_alpha' in self.policy_config:
+                try:
+                    self.alpha = self.model[agent_name]['policy'].module.log_alpha.exp().detach()
+                except:
+                    self.alpha = self.model[agent_name]['policy'].log_alpha.exp().detach()
+            else:
+                self.alpha = self.policy_config.get('entropy_coefficient', 0.4)
             # --------------- 更新critic网络 -------------
             if self.categoraical_q_value:
                 self.update_critic_when_using_categorical_critic(agent_name, current_agent_obs, agent_current_action, next_agent_obs, instant_reward, done, priority_weights)
