@@ -19,7 +19,7 @@ class fetcher:
         self.policy_type = self.policy_config['policy_type']
         self.process_uid = process_uid
         self.logger = logger
-        self.model_type = ['policy', 'critic']
+        self.model_type = ['policy', 'critic', 'double_critic']
         self.use_centralized_critic = self.config_dict['policy_config']['use_centralized_critic']
         # ------------ 构建模型请求套接字 ---------------------
         self.latest_model_requester = self.context.socket(zmq.REQ)

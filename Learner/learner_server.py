@@ -116,7 +116,7 @@ class learner_server(base_server):
                 model_config = deepcopy(self.policy_config['agent'][agent_name])
                 self.target_model[agent_name] = create_model(model_config)
                 self.target_model[agent_name].load_state_dict(self.model[agent_name].state_dict())
-                
+            
 
     def construct_model(self):
         self.optimizer = {}
@@ -134,7 +134,7 @@ class learner_server(base_server):
                 self.scheduler[agent_name] = dict()
                 self.model_path[agent_name] = dict()
                 for model_type in self.policy_config['agent'][agent_name].keys():
-                    if model_type in ['policy', 'critic']:
+                    if model_type in ['policy', 'critic', 'double_critic']:
                         model_config = deepcopy(self.policy_config['agent'][agent_name][model_type])
                         self.model[agent_name][model_type] = create_model(model_config)
                         # ------- 如果在原有的基础上进行RL的训练，就需要载入预训练模型了 ---------
@@ -151,7 +151,6 @@ class learner_server(base_server):
 
             if self.policy_config.get('using_target_network', False):
                 self.construct_target_model()
-
         # ----------- 训练模式, 使用DDP进行包装  --------------
         dist.init_process_group(init_method=self.policy_config["ddp_root_address"], backend="nccl",rank=self.global_rank, world_size=self.world_size)
         # ----- 把模型放入到设备上 ---------
@@ -285,7 +284,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank', default= 0, type=int, help="rank of current process")
     parser.add_argument('--world_size', default=1, type=int, help='total gpu card')
     parser.add_argument('--init_method', default='tcp://120.0.0.1:23456')
-    parser.add_argument('--config_path', type=str, default='Env/D4PG_config.yaml', help='yaml format config')
+    parser.add_argument('--config_path', type=str, default='Env/SAC_config.yaml', help='yaml format config')
     args = parser.parse_args()
     # abs_path = '/'.join(os.path.abspath(__file__).splits('/')[:-2])
     # concatenate_path = abs_path + '/' + args.config_path

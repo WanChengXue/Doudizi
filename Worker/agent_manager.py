@@ -82,7 +82,7 @@ class Agent_manager:
     def generate_model_info(self):
         # ------------- 这个函数是通过对policy config进行解析，然后得到模型的相关信息, 仅在测试模式下使用 --------------
         model_info = dict()
-        model_type_list = ['policy', 'critic']
+        model_type_list = ['policy', 'critic','double_critic']
         for agent_name in self.agent_name_list:
             model_info[agent_name] = dict()
             for model_type in self.policy_config['agent'][agent_name].keys():

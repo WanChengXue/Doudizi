@@ -262,7 +262,7 @@ class sample_generator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Env/D4PG_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Env/SAC_config.yaml')
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config
     args = parser.parse_args()
