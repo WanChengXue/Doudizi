@@ -45,7 +45,7 @@ class Agent_manager:
             # --------- 关于critic的配置上面，有policy和critic连在一起，有中心化的critic，还有一个policy就带一个critic那种 -----------------
             self.centralized_critic = self.policy_config['centralized_critic'] # 这个变量控制中心化训练，当为True就表示初始化一个critic
             self.seperate_critic = self.policy_config['seperate_critic'] # 这个变量表示每一个智能体有一个分离的policy和ciritci
-            self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
+        self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
         self.construct_agent()
         self.logger.info("--------------- 完成agentmanager的创建 ------------")
 
@@ -82,15 +82,14 @@ class Agent_manager:
     def generate_model_info(self):
         # ------------- 这个函数是通过对policy config进行解析，然后得到模型的相关信息, 仅在测试模式下使用 --------------
         model_info = dict()
-        model_type_list = ['policy', 'critic','double_critic']
         for agent_name in self.agent_name_list:
             model_info[agent_name] = dict()
             for model_type in self.policy_config['agent'][agent_name].keys():
-                if model_type in model_type_list:
-                    model_info[agent_name] = self.policy_config['agent'][agent_name][model_type]['model_path']
+                if model_type == 'policy':
+                    model_info[agent_name][model_type] = self.policy_config['agent'][agent_name][model_type]['model_path']
 
-        if self.multiagent_scenario:
-            pass
+        # if self.multiagent_scenario:
+        #     pass
         return model_info
 
 

@@ -34,15 +34,13 @@ class sample_generator:
         self.statistic = StatisticsUtils()
         logger_path = pathlib.Path(self.config_dict['log_dir'] + '/Worker_log/' + self.uuid[:6])
         self.logger = setup_logger('Worker_'+ self.uuid[:6], logger_path)
-        if self.eval_mode:
-            self.init_random_seed()
-        else:
+        if not self.eval_mode:
             # ---------- 这里之所以不直接继承Learner中的base server,是因为很可能采样端和learning端不在同一个机器上 --------
             self.log_sender = self.context.socket(zmq.PUSH)
             self.log_sender.connect("tcp://{}:{}".format(self.config_dict['log_server_address'], self.config_dict['log_server_port']))
             self.transmit_interval = self.policy_config['woker_transmit_interval']
-        # -------   如果说训练类型是RL，就需要不断使用policy fetcher获取最新的模型 --------
-        self.update_policy = self.policy_config['training_type'] != 'supervised_learning'
+            # -------   如果说训练类型是RL，就需要不断使用policy fetcher获取最新的模型 --------
+            self.update_policy = self.policy_config['training_type'] != 'supervised_learning'
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
         self.agent.reset()
         self.env = gym.make(self.config_dict['env']['env_name'])
@@ -113,48 +111,26 @@ class sample_generator:
                 data_dict.append(episodic_dict)
 
     def rollout_one_episode_evaluate_by_agent(self):
-        self.env.reset()
-        self.env.seed(0)
-        
-        waiting_time = []
-        instant_reward_list = []
-        start_time = time.time()
-        rosea_action_dict = dict()
-        rosea_action_dict['step_time'] = []
-        rosea_action_dict['cum_reward'] =  []
-        step = 0
+        reward_list = []
+        self.env.render(mode="human")
+        current_centralized_state = self.env.reset()
         while True:
-            features = self.env.produce_feature()
-            current_obs = self.generate_obs(features['observation'])
-            action = self.agent.compute(current_obs)
-            # -------- 将这个action分离开来，变成rosea需要的样子 ---------
-            rosea_action = self.convert_net_action_to_rosea_action(action)
-            rosea_action_dict['step_{}'.format(step)] = rosea_action
-            _, instant_reward, done, info = self.env.step(rosea_action)
-            rosea_action_dict['step_time'].append(info['current_time'])
-            rosea_action_dict['cum_reward'].append(info['cum_reward'])
-            instant_reward_list.append(instant_reward)
-            waiting_time.append(features['reward']['wait_time_per_vehicle'])
-            step += 1
-            if done or (time.time()-start_time)/3600>2:
-                features = self.env.produce_feature()
-                waiting_time.append(features['reward']['wait_time_per_vehicle'])
-                self.logger.info('-------------- 使用RL智能体进行evaluate耗时: {} --------------'.format((time.time() - start_time)/3600))
+            current_agent_obs = self._generate_obs(current_centralized_state)
+            action_dict = self.agent.compute(current_agent_obs)
+            action = self._generate_action(action_dict)
+            next_centralized_state, instant_reward, done, info = self.env.step(action)
+            reward_list.append(instant_reward)
+            self.env.render()
+            current_centralized_state = next_centralized_state
+            if done:
                 break
-        # ------- 结果存放到本地，路径为 Exp/Result/Evaluate/multi-point_heterogeneous_policy_instant_reward.npy
-        reward_saved_path = os.path.join(self.policy_config['result_save_path'], self.config_dict['policy_name']+'_instant_reward.npy')
-        waiting_time_saved_path = os.path.join(self.policy_config['result_save_path'], self.config_dict['policy_name']+'_waiting_time.npy')
-        rosea_action_saved_path = os.path.join(self.policy_config['result_save_path'], self.config_dict['policy_name'] + '_rosea_action.pkl')
-        np.save(reward_saved_path, np.array(instant_reward_list))
-        np.save(waiting_time_saved_path, np.array(waiting_time))
-        open_file = open(rosea_action_saved_path, 'wb')
-        pickle.dump(rosea_action_dict, open_file)
-        open_file.close()
+        exit()
 
     def rollout_one_episode_evaluate(self):
         self.logger.info("------------- evaluate 程序 {} 开始启动 ------------".format(self.uuid[:6]))
         self.rollout_one_episode_evaluate_by_agent()
         # --------- 这个地方使用传统算法跑一次 ----------
+
 
     def rollout_one_episode_multi_agent_scenario(self):
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
@@ -262,7 +238,7 @@ class sample_generator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Env/SAC_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Env/SAC_eval_config.yaml')
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config
     args = parser.parse_args()

@@ -79,7 +79,7 @@ class learner_server(base_server):
         if self.priority_replay_buffer:
             self.create_plasma_server_for_prioritized_replay_buffer()
         # ------------- 连接plasma 服务，这个地方需要提前启动这个plasma服务，然后让client进行连接 -------------
-        # self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
+        self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
         # ------------- 这个列表是等待数据的时间 -------------
         self.wait_data_times = []
         # ------------- 定义一个变量，观察在一分钟之内参数更新了的次数 -------------
@@ -330,7 +330,7 @@ class learner_server(base_server):
         timestamp = str(time.time())
         for agent_name in self.model.keys():
             if isinstance(self.model[agent_name], dict):
-                for model_type in self.model[agent_name][model_type]:
+                for model_type in self.model[agent_name].keys():
                     model_save_path = self.policy_config['saved_model_path'] + '/' + agent_name + '_' + model_type + '_' + timestamp
                     torch.save(self.model[agent_name][model_type].state_dict(), model_save_path)
             else:

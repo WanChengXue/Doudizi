@@ -18,12 +18,12 @@ def _read_model_from_model_pool(root_path, model_path, config_dict, imitation_po
     else:
         model_pool_path = os.path.join(root_path, model_path + imitation_policy)
 
-    for agent_name in config_dict['env']['agent_name']:
+    for agent_name in config_dict['env']['agent_name_list']:
         if config_dict['policy_config'].get('parameter_sharing', True):
             # ---------- 如果参数共享,就只要读取一个就好了 --------
             model_pool_file = sorted([file_name for file_name in os.listdir(model_pool_path) if 'policy' in file_name])
         else:
-            model_pool_file = sorted([file_name for file_name in os.listdir(model_pool_path) if 'policy_'+agent_name in file_name])
+            model_pool_file = sorted([file_name for file_name in os.listdir(model_pool_path) if agent_name +'_policy' in file_name])
         config_dict['policy_config']['agent'][agent_name]['policy']['model_path'] = os.path.join(model_pool_path, model_pool_file[-1])
     
 
@@ -73,9 +73,9 @@ def parse_config(config_file_path, parser_obj='learner'):
         create_folder(result_save_path)
         config_dict['policy_config']['result_save_path'] = result_save_path
         return config_dict
-
-    # ------------ 如果说使用了double Q net,则需要将critic的配置重复一次 ------------
-    _double_q_network_repeat_config(config_dict)
+    if config_dict['policy_config'].get('double_dqn', False):
+        # ------------ 如果说使用了double Q net,则需要将critic的配置重复一次 ------------
+        _double_q_network_repeat_config(config_dict)
     # ------------ 如果说使用的RL相关的算法，就需要设置critic的state和action dim ------
     if config_dict['policy_config']['training_type'] != 'supervised_learning':
         if 'centralized_critic' in config_dict['policy_config']['agent']:

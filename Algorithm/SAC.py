@@ -165,7 +165,8 @@ class SACTrainer:
                 if value.requires_grad and value.grad is not None:
                     if 'log_alpha' != name:
                         value.grad_ = torch.zeros_like(value.grad)
-                agent_policy_max_grads[name] = torch.max(value.grad).item()
+                    else:
+                        agent_policy_max_grads[name] = torch.max(value.grad).item()
             self.optimizer[agent_name]['policy'].step()
             policy_info_dict['alpha_loss'] = alpha_loss.item()
         torch.save(self.model[agent_name]['policy'].state_dict(), 'p_actor.model')

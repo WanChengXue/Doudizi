@@ -25,11 +25,11 @@ class Agent():
         self.construct_model()
 
     def construct_model(self):
-        self.agent = dict()
-        # ------ DDPG系列算法,actor和critic都有,并且一定是分开的 --------
         self.policy_net = create_model(self.agent_config['policy'])
-        self.critic_net = create_model(self.agent_config['critic'])
-        self.double_critic = create_model(self.agent_config['double_critic'])
+        # ------ DDPG系列算法,actor和critic都有,并且一定是分开的 --------
+        if not self.agent_config.get('eval_mode', False):
+            self.critic_net = create_model(self.agent_config['critic'])
+            self.double_critic = create_model(self.agent_config['double_critic'])
         
     
     def synchronize_model(self, model_path):
@@ -50,4 +50,8 @@ class Agent():
     def compute_action_eval_mode(self, obs):
         with torch.no_grad():
             action = self.policy_net.get_det_action(obs)
-        return action
+            clipped_action = torch.clamp(action, self.action_low, self.action_high)
+        return clipped_action
+        # with torch.no_grad():
+        #     action = self.policy_net.get_action(obs)
+        # return action

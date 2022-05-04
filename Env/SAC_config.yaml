@@ -55,6 +55,7 @@ policy_config:
   categorical_critic_net: False
   algorithm: SAC
   agent_name: 'sac_agent'
+  double_dqn: True
   # ---- 这个变量表示要不要使用target网络 ------
   using_target_network: True
   # Pytorch DDP相关
