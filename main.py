@@ -40,7 +40,7 @@ def main(args):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Env/SAC_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Env/D4PG_config.yaml')
     parser.add_argument("--machine_index", type=int, default=0)
     args = parser.parse_args()
     main(args)

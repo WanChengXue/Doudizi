@@ -31,7 +31,7 @@ config_server_http_port: 9002
 # ----- 这个变量是learner端使用，表示发布新模型的时间间隔 -----
 model_update_intervel: 3
 # --------- 这个变量是dataserver是从buffer里面采一个batch的数据放入到plasma client里面的时间间隔 -----------------
-data_server_sampling_interval: 5
+data_server_sampling_interval: 0
 # ------- 将worker端采样得到的数据保存到本地的文件夹 --------
 data_saved_folder: 'Data_saved'
 # ----- 要不要开启数据保存 ------
@@ -83,9 +83,9 @@ policy_config:
   # ------ 这个地方采用的cosineannealingwarmrestarts()学习率调整 ------------
   T_zero: 5
   # -------- 定义replay buffer相关的参数 -------
-  priority_replay_buffer: False
+  priority_replay_buffer: True
   replay_buffer_config:
-    buffer_name: data_buffer
+    buffer_name: prioritized_replay_buffer
     # prioritized_replay_buffer
     capacity: 20000
     batch_size: *batch_size
