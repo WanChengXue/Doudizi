@@ -20,7 +20,6 @@ from Utils.data_utils import convert_data_format_to_torch_interference
 class Agent_manager:
     def __init__(self, config_dict, context, statistic, process_uid, logger, port_num=None):
         self.config_dict = config_dict
-        self.agent_nums = self.config_dict['env']['agent_nums']
         self.policy_config = self.config_dict['policy_config']
         # ---------- 智能体的名称,统一用env字段中的 ---------
         self.agent_name_list = self.config_dict['env']['agent_name_list']
@@ -41,7 +40,7 @@ class Agent_manager:
         self.training_type = self.policy_config['training_type']
         self.parameter_sharing = self.policy_config.get('parameter_sharing', False)
         
-        if self.training_type == 'RL':
+        if self.training_type == 'RL' and not self.eval_mode:
             # --------- 关于critic的配置上面，有policy和critic连在一起，有中心化的critic，还有一个policy就带一个critic那种 -----------------
             self.centralized_critic = self.policy_config['centralized_critic'] # 这个变量控制中心化训练，当为True就表示初始化一个critic
             self.seperate_critic = self.policy_config['seperate_critic'] # 这个变量表示每一个智能体有一个分离的policy和ciritci
@@ -171,7 +170,7 @@ if __name__ == '__main__':
     context = zmq.Context()
     statistic = StatisticsUtils()
     from Utils.config import parse_config
-    from Utils.config import setup_logger
+    from Utils.utils import setup_logger
     config_dict = parse_config(concatenate_path)
     logger_path = pathlib.Path(config_dict['log_dir']+ '/sampler/test_agent_log')
     logger = setup_logger('Test_agent', logger_path)

@@ -27,10 +27,11 @@ class Agent:
         self.agent = dict()
         # ------ DDPG系列算法,actor和critic都有,并且一定是分开的 --------
         self.policy_net = create_model(self.agent_config['policy'])
-        self.critic_net = create_model(self.agent_config['critic'])
-        self.ou_enabled = self.agent_config.get('ou_enabled', False)
-        if self.ou_enabled:
-            self._construct_ou_noise_explorator()
+        if not self.agent_config.get('eval_mode', False):
+            self.critic_net = create_model(self.agent_config['critic'])
+            self.ou_enabled = self.agent_config.get('ou_enabled', False)
+            if self.ou_enabled:
+                self._construct_ou_noise_explorator()
 
 
     def synchronize_model(self, model_path):

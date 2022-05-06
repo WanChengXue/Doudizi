@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from wandb import agent
 from Algorithm.utils import huber_loss, soft_update
 
 
@@ -86,46 +85,42 @@ class SACTrainer:
         agent_critic_loss_1 = 0.5 * self.critic_loss_1(current_q_1, Q_target)
         self.optimizer[agent_name]['critic'].zero_grad()
         agent_critic_loss_1.backward()
-        # critic_1_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['critic'].parameters(), self.max_grad_norm)
+        critic_1_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['critic'].parameters(), self.max_grad_norm)
         critic_1_max_grads = {}
         for name, value in self.model[agent_name]['critic'].named_parameters():
             if value.requires_grad:
                 critic_1_max_grads[name] = torch.max(value.grad).item()
-        # critic_info_dict['critic_1']['critic_grad_norm'] = critic_1_grad_norm.item()
+        critic_info_dict['critic_1']['critic_grad_norm'] = critic_1_grad_norm.item()
         critic_info_dict['critic_1']['Layer_max_grad'] = critic_1_max_grads
         critic_info_dict['critic_1']['critic_loss'] = agent_critic_loss_1.item()
         self.optimizer[agent_name]['critic'].step()
         self.scheduler[agent_name]['critic'].step()
-        torch.save(self.model[agent_name]['critic'].state_dict(), 'p_critic.model')
         # ------------ 更新double q网络的参数 ----------------
         agent_critic_loss_2 = 0.5 * self.critic_loss_2(current_q_2, Q_target)
         self.optimizer[agent_name]['double_critic'].zero_grad()
         agent_critic_loss_2.backward()
-        # critic_2_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['double_critic'].parameters(), self.max_grad_norm)
+        critic_2_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['double_critic'].parameters(), self.max_grad_norm)
         critic_2_max_grads = {}
         for name, value in self.model[agent_name]['double_critic'].named_parameters():
             if value.requires_grad:
                 critic_2_max_grads[name] = torch.max(value.grad).item()
-        # critic_info_dict['critic_2']['critic_grad_norm'] = critic_2_grad_norm.item()
+        critic_info_dict['critic_2']['critic_grad_norm'] = critic_2_grad_norm.item()
         critic_info_dict['critic_2']['Layer_max_grad'] = critic_2_max_grads
         critic_info_dict['critic_2']['critic_loss'] = agent_critic_loss_2.item()
         self.optimizer[agent_name]['double_critic'].step()
         self.scheduler[agent_name]['double_critic'].step()
         self.info_dict[agent_name]['critic'] = critic_info_dict
-        torch.save(self.model[agent_name]['double_critic'].state_dict(), 'p_double_critic.model')
         # ----------- 更新优先级 ----------
         if priority_weight is not None:
             with torch.no_grad():
                 td1 = (current_q_1 - Q_target_1).data
                 td2 = (current_q_2 - Q_target_2).data
-                batch_td_error = torch.abs(torch.min(td1, td2)+1e-5)
-                self.batch_td_error = batch_td_error
+                batch_td_error = torch.abs(torch.min(td1, td2)+1e-5).data.cpu().numpy().squeeze()
+                self.batch_td_error[agent_name] = batch_td_error
 
         # --------- 采用soft update更新两个target critic网络 -----------
         soft_update(self.model[agent_name]['critic'], self.target_model[agent_name]['critic'], self.tau)
-        torch.save(self.target_model[agent_name]['critic'].state_dict(), 'p_target_critic.model')
         soft_update(self.model[agent_name]['double_critic'], self.target_model[agent_name]['double_critic'], self.tau)
-        torch.save(self.target_model[agent_name]['double_critic'].state_dict(), 'p_target_double_critic.model')
 
 # 
     def update_policy(self, agent_name, current_agent_obs, weights=1):
@@ -142,18 +137,16 @@ class SACTrainer:
         agent_actor_loss = torch.mean(weights * (self.alpha * log_prob - min_q_value))
         self.optimizer[agent_name]['policy'].zero_grad()
         agent_actor_loss.backward()
-        # agent_policy_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['policy'].parameters(), self.max_grad_norm)
+        agent_policy_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['policy'].parameters(), self.max_grad_norm)
         agent_policy_max_grads = dict()
-        torch.save(self.model[agent_name]['policy'].state_dict(), 'p_before_update.model')
         for name, value in self.model[agent_name]['policy'].named_parameters():
             if value.requires_grad and value.grad is not None:
                 agent_policy_max_grads[name] = torch.max(value.grad).item()
         policy_info_dict['Layer_max_grads'] = agent_policy_max_grads
         policy_info_dict['Policy_loss'] = agent_actor_loss.item()
-        # policy_info_dict['Policy_grad_norm'] = agent_policy_grad_norm.item()
+        policy_info_dict['Policy_grad_norm'] = agent_policy_grad_norm.item()
         policy_info_dict['Q_value_std'] = torch.std(min_q_value).item()
         self.optimizer[agent_name]['policy'].step()
-        # self.scheduler[agent_name]['policy'].step()
         # ------------- 如果不采用固定的alpha,则需要进行
         if 'adaptive_alpha' in self.policy_config:
             # ---------- 计算alpha loss ---------
@@ -169,11 +162,12 @@ class SACTrainer:
                         agent_policy_max_grads[name] = torch.max(value.grad).item()
             self.optimizer[agent_name]['policy'].step()
             policy_info_dict['alpha_loss'] = alpha_loss.item()
-        torch.save(self.model[agent_name]['policy'].state_dict(), 'p_actor.model')
+        self.scheduler[agent_name]['policy'].step()
         self.info_dict[agent_name]['policy'] = policy_info_dict
 
     def step(self, training_data, priority_weights = None):
         self.info_dict = dict()
+        self.batch_td_error = dict()
         for agent_name in training_data.keys():
             current_agent_obs = training_data[agent_name]['current_agent_obs']
             agent_current_action = training_data[agent_name]['actions']
@@ -195,12 +189,17 @@ class SACTrainer:
             else:
                 self.update_critic(agent_name, current_agent_obs, agent_current_action, next_agent_obs, instant_reward, done, priority_weights) 
             # -------------- 更新策略网路 ---------------
+            if priority_weights is None:
+                self.update_policy(agent_name, current_agent_obs)
+            else:
+                self.update_policy(agent_name, current_agent_obs, priority_weights[agent_name].unsqueeze(-1))
+        # ----- 返回数据 -------
         if priority_weights is None:
-            self.update_policy(agent_name, current_agent_obs)
             return self.info_dict
         else:
-            self.update_policy(agent_name, current_agent_obs, priority_weights)
             return self.info_dict, self.batch_td_error
+
+            
 
 
             

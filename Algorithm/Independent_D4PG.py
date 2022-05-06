@@ -92,7 +92,7 @@ class Independent_D4PGTrainer:
             if priority_weights is None:
                 agent_critic_loss = torch.mean(critic_loss_vector)
             else:
-                batch_td_error[agent_name] = torch.abs(critic_loss_vector).data.cpu().numpy() + 1e-4
+                batch_td_error[agent_name] = torch.abs(critic_loss_vector.squeeze()).data.cpu().numpy() + 1e-4
                 agent_critic_loss = torch.mean(critic_loss_vector * priority_weights[agent_name])
             self.optimizer[agent_name]['critic'].zero_grad()
             agent_critic_loss.backward()

@@ -13,7 +13,7 @@ sys.path.append(root_path)
 
 from Utils.utils import generate_plasma_id, generate_plasma_id_for_PEB
 from Utils import data_utils
-from Utils.data_utils import data_buffer,convert_list_to_dict,prioritized_replay_buffer
+from Utils.data_utils import convert_list_to_dict
 from Utils.utils import setup_logger,create_folder
 from Learner.base_server import base_server
 
@@ -172,21 +172,7 @@ class data_receiver_server(base_server):
                 self.parse_recv_data_time_list.append(parse_data_time)
             del raw_data_list
 
-        # ------------------ 朝着logserver发送日志，日志设置为每一分钟发送一次 --------------------
-        if time.time() > self.next_send_log_time:
-            self.next_send_log_time += 60
-            # ---------- 这个地方将这个worker在一分钟内收到的数据量发送给logserver ----------------
-            self.send_log({"data_server/data_server_recv_data_numbers_per_min/{}".format(self.policy_name): self.recv_data_number})
-            # ---------- 这个地方将这一分钟内，耗费在socket上面的时间发送个logserver ----------------
-            self.send_log({"data_server/socket_recv_time_per_min/{}".format(self.policy_name): sum(self.socket_recv_time_list)})
-            # ----------- 这个地方将这一分钟内，解析数据时间，以及将数据转移到replaybuffer里面的时间发送给logserver -----------
-            self.send_log({"data_server/parse_recv_data_time_per_min/{}".format(self.policy_name): sum(self.parse_recv_data_time_list)})
-            self.send_log({"sampler/transfer_data_from_buffer_to_plasma_server_per_min/{}".format(self.policy_name): sum(self.sample_data_time_list)})
-            # ---------- 重置这四个变量 -------------
-            self.recv_data_number = 0
-            self.socket_recv_time_list = []
-            self.parse_recv_data_time_list = []
-            self.sample_data_time_list = []
+        
 
     def _sample_data_from_replay_buffer(self):
         # ----------- 此处随机采样出一个batch的训练数据 ----------------
@@ -302,13 +288,28 @@ class data_receiver_server(base_server):
             else:
                 sockets = dict(self.poller.poll(timeout=100))
                 self._recv_data(sockets)
-                # ------ 如果说这个这个plasma id不在plasma客户端里面，并且这个replaybuffer要是满的，还要当前时间超过了采样间隔才放进去 ---------
+                # ------ 如果说这个这个plasma id不在plasma客户端里面，并且这个replaybuffer要是满的，还要当前时间超过了采样间隔才放进去，默认采样间隔为0 ---------
                 if self.full_buffer() and time.time()>self.next_sample_time and not self.plasma_client.contains(self.plasma_data_id):
                     current_time = time.time()
                     self.next_sample_time = current_time + self.config_dict['data_server_sampling_interval']
                     self.sampling_data()
                     self.sample_data_time_list.append(time.time() - current_time)
                 
+                # ------------------ 朝着logserver发送日志，日志设置为每一分钟发送一次 --------------------
+                if time.time() > self.next_send_log_time:
+                    self.next_send_log_time += 60
+                    # ---------- 这个地方将这个worker在一分钟内收到的数据量发送给logserver ----------------
+                    self.send_log({"data_server/data_server_recv_data_numbers_per_min/{}".format(self.policy_name): self.recv_data_number})
+                    # ---------- 这个地方将这一分钟内，耗费在socket上面的时间发送个logserver ----------------
+                    self.send_log({"data_server/socket_recv_time_per_min/{}".format(self.policy_name): sum(self.socket_recv_time_list)})
+                    # ----------- 这个地方将这一分钟内，解析数据时间，以及将数据转移到replaybuffer里面的时间发送给logserver -----------
+                    self.send_log({"data_server/parse_recv_data_time_per_min/{}".format(self.policy_name): sum(self.parse_recv_data_time_list)})
+                    self.send_log({"sampler/transfer_data_from_buffer_to_plasma_server_per_min/{}".format(self.policy_name): sum(self.sample_data_time_list)})
+                    # ---------- 重置这四个变量 -------------
+                    self.recv_data_number = 0
+                    self.socket_recv_time_list = []
+                    self.parse_recv_data_time_list = []
+                    self.sample_data_time_list = []
 
 if __name__=='__main__':
     import argparse
