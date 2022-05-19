@@ -1,7 +1,7 @@
 import argparse
 import os
 import shutil
-from Utils.config import parse_config
+from Utils.config import parse_config,create_folder
 
 
 def start_learner_data_server(config_path, world_size, machine_index, device_number_per_machine, server_number_per_device, log_dir):
@@ -20,7 +20,7 @@ def main(args):
     config_dict = parse_config(args.config_path)
     log_dir = config_dict["log_dir"]
     # ------ 如果这个log文件夹存在，就删掉 --------
-    # shutil.rmtree(log_dir)
+    create_folder(log_dir, delete_origin=True)
     # ------- 打开plasma server，log server，config server ------
     if args.machine_index == 0:
         # ----- 打开plasma server -----------
@@ -40,7 +40,7 @@ def main(args):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Env/D4PG_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Config/Training/MAPPO_config.yaml')
     parser.add_argument("--machine_index", type=int, default=0)
     args = parser.parse_args()
     main(args)

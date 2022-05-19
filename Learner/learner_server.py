@@ -192,7 +192,6 @@ class learner_server(base_server):
                 if isinstance(self.model[agent_name], dict):
                     for model_type in self.model[agent_name].keys():
                         self.model[agent_name][model_type].to(self.local_rank).train()
-                        self.load_model(self.model[agent_name][model_type], model_type)
                         if self.policy_config.get('using_target_network', False):
                             self.target_model[agent_name][model_type].to(self.local_rank)
                             self.load_target_model(self.target_model[agent_name][model_type], model_type)
@@ -351,7 +350,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank', default= 0, type=int, help="rank of current process")
     parser.add_argument('--world_size', default=1, type=int, help='total gpu card')
     parser.add_argument('--init_method', default='tcp://120.0.0.1:23456')
-    parser.add_argument('--config_path', type=str, default='Env/SAC_config.yaml', help='yaml format config')
+    parser.add_argument('--config_path', type=str, default='Config/Training/MAPPO_config.yaml', help='yaml format config')
     args = parser.parse_args()
     # abs_path = '/'.join(os.path.abspath(__file__).splits('/')[:-2])
     # concatenate_path = abs_path + '/' + args.config_path

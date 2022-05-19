@@ -5,6 +5,7 @@ import zmq
 import random
 import os
 import sys
+import torch
 from copy import deepcopy
 current_path = os.path.abspath(__file__)
 root_path = '/'.join(current_path.split('/')[:-2])
@@ -26,6 +27,7 @@ class Agent_manager:
         self.model_info = None
         self.logger = logger
         # ---------- eavl mode ----------
+        self.policy_based_RL = self.policy_config.get('policy_based_RL', False)
         self.eval_mode = self.policy_config.get('eval_mode', False)
         if self.eval_mode:
             # ----------- 在测试模式下,需要先生成模型信息然后进行加载 ----------
@@ -43,7 +45,7 @@ class Agent_manager:
         if self.training_type == 'RL' and not self.eval_mode:
             # --------- 关于critic的配置上面，有policy和critic连在一起，有中心化的critic，还有一个policy就带一个critic那种 -----------------
             self.centralized_critic = self.policy_config['centralized_critic'] # 这个变量控制中心化训练，当为True就表示初始化一个critic
-            self.seperate_critic = self.policy_config['seperate_critic'] # 这个变量表示每一个智能体有一个分离的policy和ciritci
+            self.seperate_critic = self.policy_config.get('seperate_critic', False) # 这个变量表示每一个智能体有一个分离的policy和ciritci
         self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
         self.construct_agent()
         self.logger.info("--------------- 完成agentmanager的创建 ------------")
@@ -102,19 +104,42 @@ class Agent_manager:
     def compute(self, obs):
         torch_type_data = convert_data_format_to_torch_interference(obs)
         network_decision = dict()
+        if self.policy_based_RL:
+            log_prob_dict = dict()
         for agent_name in torch_type_data.keys():
             # --------- torch_type_data的key必须和agent name list是一致的 ----------
             assert agent_name in self.agent_name_list, '----- torch_type_data的key和agent name list必须要一致 --------'
             if self.eval_mode:
                 network_output = self.agent[agent_name].compute_action_eval_mode(torch_type_data[agent_name])
             else:
-                network_output = self.agent[agent_name].compute_action_training_mode(torch_type_data[agent_name])
-            network_output = network_output.squeeze().numpy()
+                if self.policy_based_RL:
+                    network_output, log_prob = self.agent[agent_name].compute_action_training_mode(torch_type_data[agent_name])
+                    log_prob_dict[agent_name] = log_prob.squeeze(0).numpy()
+                    assert len(log_prob_dict[agent_name]) == 1, '------------- 确保概率必须是一个长度为1的numpy类型数据 ----------'
+                else:
+                    network_output = self.agent[agent_name].compute_action_training_mode(torch_type_data[agent_name])
+            network_output = network_output.squeeze(0).numpy()
             network_decision[agent_name] = network_output.tolist()
             assert isinstance(network_decision[agent_name], list), '------------ 网络的输出结果需要是一个列表 -----------'
         # --------- 确保这个输出结果是一个一维list --------
-        return network_decision
+        if self.policy_based_RL:
+            return network_decision, log_prob_dict
+        else:
+            return network_decision
 
+    def compute_state_value(self, obs):
+        # ----------- 分清楚，是使用一个centralized的critic直接计算还是使用IPPO算法，每一个智能体分别计算 ---------
+        if self.multiagent_scenario:
+            torch_type_data = torch.FloatTensor(obs).unsqueeze(0)
+            old_state_value = self.agent['centralized_critic'].compute_state_value(torch_type_data)
+            old_state_value = old_state_value.squeeze(0).numpy()
+        else:
+            torch_type_data = convert_data_format_to_torch_interference(obs)
+            old_state_value = dict()
+            for agent_name in self.agent_name_list:
+                agent_state_value = self.agent[agent_name].compute_state_value(torch_type_data[agent_name])
+                old_state_value[agent_name] = agent_state_value.squeeze(0).numpy()
+        return old_state_value
 
     def synchronize_model(self):
         if self.eval_mode:

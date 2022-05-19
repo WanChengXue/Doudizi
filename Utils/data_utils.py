@@ -345,3 +345,34 @@ class OUNoise():
         ou_explore_action = current_actions + self.ou_epsilon * torch.FloatTensor(self.state).unsqueeze(0)
         actions = torch.clamp(ou_explore_action, self.low, self.high)
         return actions
+
+
+def GAE_estimator_single_agent(data_list, gamma, tau, bootstrap_value):
+    # ----------- 这个函数处理两种情况：要么multiagent_scenario,要么是single agent的数据 -------
+    advantages = np.ones((len(data_list)), np.float32)
+    deltas = np.ones((len(data_list)), np.float32)
+    rewards = np.array([data["instant_reward"] for data in data_list], dtype=np.float32).clip(-1,1)
+    dones = [data["done"] for data in data_list]
+    try:
+        values = [data["old_state_value"] for data in data_list]
+    except:
+        values = [data["old_obs_value"] for data in data_list]
+    values = np.array(values, dtype=np.float32)  
+    prev_value = bootstrap_value
+    prev_advantage = 0
+    # -------- 最开始的terminal state的时候，计算出来的a就是r - v -------
+    for i in reversed(range(len(data_list))):
+        deltas[i] = rewards[i] + gamma * prev_value * (1-dones[i]) - values[i]
+        advantages[i] = deltas[i] + (gamma * tau) * prev_advantage  * (1-dones[i])
+        prev_value = values[i]
+        prev_advantage = advantages[i]
+        data_list[i]['advantages'] = advantages[i]    
+        data_list[i]['target_state_value'] = advantages[i] + values[i]
+
+def GAE_estimator(data_dict, gamma, tau, bootstrap_value, multiagent_scenario):
+    if multiagent_scenario:
+        GAE_estimator_single_agent(data_dict, gamma, tau, bootstrap_value)
+    else:
+        for agent_name in data_dict.keys():
+            GAE_estimator_single_agent(data_dict[agent_name], gamma, tau, bootstrap_value[agent_name])
+

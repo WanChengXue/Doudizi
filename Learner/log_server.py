@@ -131,7 +131,7 @@ class log_server(base_server):
         # ------ 这个就是到了Pretrained_model这一层路径下面 ----- ~/Desktop/ICC/code_part
         root_path = '/'.join(function_path.split('/')[:-2])
         # ------------ tensorboard_folder的路径是./logs/Tensorboard，需要把./去掉
-        abs_path = root_path + '/' + tensorboard_folder[2:]
+        abs_path = root_path + '/' + tensorboard_folder
         server_ip = self.config_dict['log_server_address']
         tensorboard_command = "nohup python -m tensorboard.main --logdir={} --host={} > /dev/null 2>&1 &".format(abs_path, server_ip)
         os.system(tensorboard_command)

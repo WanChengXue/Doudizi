@@ -91,6 +91,7 @@ def parse_config(config_file_path, parser_obj='learner'):
     if "main_server_ip" in config_dict:
         config_dict["log_server_address"] = config_dict["main_server_ip"]
         config_dict["config_server_address"] = config_dict["main_server_ip"]
+    config_dict['log_dir'] = os.path.join(config_dict['log_dir'], config_dict['policy_name'])
     create_folder(config_dict['log_dir'])
     # ----------------- 覆盖掉原始的值 ----------------------------------------------------------------------
     # 使用单机多卡去运行

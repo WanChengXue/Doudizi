@@ -17,7 +17,7 @@ def single_process_generate_sample(config_path, port_num):
 if __name__=='__main__':
     # ---------- 导入配置文件 ------------
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', type=str, default='/Env/D4PG_config.yaml')
+    parser.add_argument('--config_path', type=str, default='/Config/Training/MAPPO_config.yaml')
     parser.add_argument('--parallel_env', type=int, default=6)
     args = parser.parse_args()
     abs_path = '/'.join(os.path.abspath(__file__).split('/')[:-2])

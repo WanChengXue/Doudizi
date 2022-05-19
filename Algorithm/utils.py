@@ -64,3 +64,15 @@ def reversed_dict(action_dict):
     return reversed_action_dict
             
 
+def mean_info_dict(info_list):
+    # -----------
+    instance_sample = info_list[0]
+    if isinstance(instance_sample, dict):
+        sub_dict = dict()
+        for key in instance_sample:
+            # -------- 将这个子字典中的所有key获取到 -------
+            sub_dict[key] = mean_info_dict([single_sample[key] for single_sample in info_list])
+    else:
+        sub_dict = sum(info_list) / len(info_list)
+    return sub_dict
+    

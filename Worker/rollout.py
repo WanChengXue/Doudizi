@@ -18,6 +18,7 @@ import gym
 import pybullet_envs
 from Utils.config import parse_config
 from Utils.utils import setup_logger
+from Utils.data_utils import GAE_estimator
 from Worker.statistic import StatisticsUtils
 from Worker.agent_manager import Agent_manager
 
@@ -45,16 +46,19 @@ class sample_generator:
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
         self.agent.reset()
         self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
+        self.policy_based_RL = self.config_dict['policy_config'].get('policy_based_RL', False)
         self.logger.info("---------------- 完成sampler的构建 ------------")
 
-    def pack_data(self, data_dict):
+    def pack_data(self, data_dict, bootstrap_value):
         # ----------- 这个函数用来将数据进行打包，然后发送 ——----------
+        if self.policy_based_RL:
+            GAE_estimator(data_dict, self.policy_config['gamma'], self.policy_config['tau'], bootstrap_value, self.multiagent_scenario)
         # ----------- 使用SL算法，不需要使用GAE估计Advantage值 --------
         return data_dict
 
-    def send_data(self, data_dict):
+    def send_data(self, data_dict, bootstrap_value=None):
         # ----------- 这个函数用来发送数据到dataserver -------------
-        packed_data = self.pack_data(data_dict)
+        packed_data = self.pack_data(data_dict, bootstrap_value)
         self.agent.send_data(packed_data)
 
     def _generate_obs(self, centralized_state):
@@ -124,7 +128,6 @@ class sample_generator:
             current_centralized_state = next_centralized_state
             if done:
                 break
-        exit()
 
     def rollout_one_episode_evaluate(self):
         self.logger.info("------------- evaluate 程序 {} 开始启动 ------------".format(self.uuid[:6]))
@@ -154,7 +157,14 @@ class sample_generator:
         step = 0
         while True:
             current_agent_obs = self._generate_obs(current_centralized_state)
-            action_dict = self.agent.compute(current_agent_obs)
+            if self.policy_based_RL:
+                if self.multiagent_scenario:
+                    centralized_state_value = self.agent.compute_state_value(current_centralized_state)
+                else:
+                    obs_value_dict = self.agent.compute_state_value(current_agent_obs)
+                action_dict, log_prob_dict = self.agent.compute(current_agent_obs)
+            else:
+                action_dict = self.agent.compute(current_agent_obs)
             action = self._generate_action(action_dict)
             next_centralized_state, instant_reward, done, info = self.env.step(action)
             next_agent_obs = self._generate_obs(next_centralized_state)
@@ -164,6 +174,9 @@ class sample_generator:
                 episodic_dict['current_agent_obs'] = current_agent_obs
                 episodic_dict['current_centralized_state'] = deepcopy(current_centralized_state)
                 episodic_dict['actions'] = deepcopy(action)
+                if self.policy_based_RL:
+                    episodic_dict['old_state_value'] = centralized_state_value
+                    episodic_dict['log_prob_dict'] = deepcopy(log_prob_dict)
                 n_step_state_queue.put(episodic_dict)
                 n_step_reward_list.append(instant_reward)
                 if n_step_state_queue.full() or done:
@@ -176,6 +189,9 @@ class sample_generator:
                     episodic_dict[agent_name]['current_agent_obs'] = deepcopy(current_agent_obs[agent_name])
                     episodic_dict[agent_name]['actions'] = deepcopy(action_dict[agent_name])
                     n_step_reward_list[agent_name].append(instant_reward)
+                    if self.policy_based_RL:
+                        episodic_dict[agent_name]['old_obs_value'] = obs_value_dict[agent_name]
+                        episodic_dict[agent_name]['old_log_prob'] = log_prob_dict[agent_name]
                 n_step_state_queue.put(episodic_dict)
                 if n_step_state_queue.full() or done:
                     self._app_episodic_dict(n_step_state_queue, data_dict, n_step_reward_list, done, next_agent_obs)
@@ -183,7 +199,15 @@ class sample_generator:
             current_centralized_state = next_centralized_state
             reward_list.append(instant_reward)
             if done:
-                self.send_data(data_dict)
+                # -------------- 需要计算一下bootstrap value -------------
+                if self.policy_based_RL:
+                    if self.multiagent_scenario:
+                        bootstrap_value = self.agent.compute_state_value(next_centralized_state)
+                    else:
+                        bootstrap_value = self.agent.compute_state_value(next_agent_obs)
+                else:
+                    bootstrap_value = None
+                self.send_data(data_dict, bootstrap_value)
                 self.agent.step()
                 if self.policy_config.get('ou_enabled', False):
                     self.agent._construct_ou_noise_explorator()
@@ -238,7 +262,7 @@ class sample_generator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Env/D4PG_eval_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Config/Training/MAPPO_config.yaml')
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config
     args = parser.parse_args()
