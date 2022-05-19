@@ -202,8 +202,8 @@ class learner_server(base_server):
                         self.target_model[agent_name].to(self.local_rank)
                     self.model[agent_name] = DDP(self.model[agent_name], device_ids=[self.local_rank])
         # torch.manual_seed(194864146)
-        torch.manual_seed(0)
-        torch.cuda.manual_seed(0)
+        # torch.manual_seed(0)
+        # torch.cuda.manual_seed(0)
         self.logger.info('----------- 完成模型的创建 ---------------')
         # ----------- 调用更新算法 ---------------
         algo_cls = get_algorithm_cls(self.policy_config['algorithm'])

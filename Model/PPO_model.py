@@ -38,13 +38,16 @@ class Actor(nn.Module):
         # -------- rsample表示先从标准0,1正态上采样,然后将采样值作mean + std * 采样值的操作 
         e = dist.rsample()
         # -------- 这个sigmoid主要是因为动作是0~1之间 -------
-        action = torch.tanh(e)
-        log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
+        action = torch.clamp(e, -1, 1)
+        log_prob = dist.log_prob(e)
+        # action = torch.tanh(e)
+        # log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
         return action, log_prob
 
     def get_det_action(self, state):
         mu, log_std = self.forward(state)
-        action = torch.tanh(mu)
+        action = torch.clamp(mu, -1, 1)
+        # action = torch.tanh(mu)
         return action
 
     def evaluate(self, state, action, epsilon=1e-6):
@@ -53,14 +56,15 @@ class Actor(nn.Module):
         std = log_std.exp()
         dist = Normal(mu, std)
         # -------- 需要通过计算反sigmoid函数，得到采样的值 -------
-        sample_data = torch.atanh(action)
-        # -------- 计算采用的噪声向量 --------
-        noise_vector = (sample_data-mu) / std
-        # -------- 重新计算e，action，这次是要带梯度的 --------
-        e = mu + std * noise_vector.data
-        action_with_graph = torch.tanh(e)
-        # -------- 然后再计算出条件概率 ----------
-        log_prob = (dist.log_prob(e) - torch.log(1 - action_with_graph.pow(2) + epsilon)).sum(1, keepdim=True)
+        # sample_data = torch.atanh(action)
+        # # -------- 计算采用的噪声向量 --------
+        # noise_vector = (sample_data-mu) / std
+        # # -------- 重新计算e，action，这次是要带梯度的 --------
+        # e = mu + std * noise_vector.data
+        # action_with_graph = torch.tanh(e)
+        # # -------- 然后再计算出条件概率 ----------
+        # log_prob = (dist.log_prob(e) - torch.log(1 - action_with_graph.pow(2) + epsilon)).sum(1, keepdim=True)
+        log_prob = dist.log_prob(action)
         # entropy = dist.entropy()
         return log_prob
 

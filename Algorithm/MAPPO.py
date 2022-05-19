@@ -23,7 +23,7 @@ class MAPPOTrainer():
         # ------ 这个变量是entropy约束的系数 ----------
         self.entropy_coef = self.policy_config['entropy_coef']
         #  -------------- 这个地方进行value loss的clip操作 -----------
-        self.clip_value = self.policy_config.get('clip_value', True)      
+        self.clip_value = self.policy_config.get('clip_value', False)      
         self.use_popart = self.policy_config.get('use_popart', False)
         # ----------- dual_clip表示要不要进行双梯度剪裁 ---------
         self.dual_clip = self.policy_config.get('dual_clip', None)
