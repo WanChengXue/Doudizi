@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
-import numpy as np
 
 
 class Actor(nn.Module):
@@ -39,7 +38,7 @@ class Actor(nn.Module):
         e = dist.rsample()
         # -------- 这个sigmoid主要是因为动作是0~1之间 -------
         action = torch.clamp(e, -1, 1)
-        log_prob = dist.log_prob(e)
+        log_prob = torch.sum(dist.log_prob(e),-1).unsqueeze(-1)
         # action = torch.tanh(e)
         # log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
         return action, log_prob
@@ -66,7 +65,7 @@ class Actor(nn.Module):
         # log_prob = (dist.log_prob(e) - torch.log(1 - action_with_graph.pow(2) + epsilon)).sum(1, keepdim=True)
         log_prob = dist.log_prob(action)
         # entropy = dist.entropy()
-        return log_prob
+        return torch.sum(log_prob, -1).unsqueeze(-1)
 
 
 class Critic(nn.Module):
