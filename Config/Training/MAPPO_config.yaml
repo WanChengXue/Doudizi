@@ -93,7 +93,7 @@ policy_config:
   training_parameters:
     # ===== 梯度计算的时候，最大梯度值 ====
     clip_value: False
-    max_grad_norm: 10 
+    max_grad_norm: 0.5
     clip_epsilon: 0.2
     dual_clip: 2
     entropy_coef: 0.01

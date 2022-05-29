@@ -23,12 +23,14 @@ class MAPPOTrainer():
         # ------ 这个变量是entropy约束的系数 ----------
         self.entropy_coef = self.policy_config['entropy_coef']
         #  -------------- 这个地方进行value loss的clip操作 -----------
-        self.clip_value = self.policy_config.get('clip_value', False)      
+        self.clip_value = self.policy_config.get('clip_value', True)      
         self.use_popart = self.policy_config.get('use_popart', False)
         # ----------- dual_clip表示要不要进行双梯度剪裁 ---------
         self.dual_clip = self.policy_config.get('dual_clip', None)
         # --------------- 同一段样本，默认使用PPO更新5次 --------------
-        self.ppo_update_epoch = self.policy_config.get('ppo_update_epoch', 5)
+        self.ppo_update_epoch = self.policy_config.get('ppo_update_epoch', 2)
+        # --------------- 定义advantage normalization -----------
+        self.advantage_normalization = self.policy_config.get('advantage_normalization',True)
         # ----------- 构建优化器，调度器，model -------------
         self.model = model
         self.optimizer = optimizer
@@ -156,6 +158,10 @@ class MAPPOTrainer():
                 centralized_advantage_value = training_data['advantages']
                 target_state_value = old_state_value + centralized_advantage_value
                 self.update_centralized_critic(target_state_value, current_centralized_state, old_state_value)
+                if self.advantage_normalization:
+                    centralized_advantage_value_mean = torch.mean(centralized_advantage_value)
+                    centralized_advantage_value_std = torch.std(centralized_advantage_value)
+                    centralized_advantage_value = (centralized_advantage_value - centralized_advantage_value_mean) / centralized_advantage_value_std
 
             for agent_name in self.agent_name_list:
                 if self.use_centralized_critic:
@@ -171,7 +177,10 @@ class MAPPOTrainer():
                     agent_old_state_value = training_data[agent_name]['old_obs_value']
                     agent_advantage = training_data[agent_name]['advantages']
                     self.update_critic(agent_name, agent_obs, agent_old_state_value, agent_advantage)
-                    
+                    if self.advantage_normalization:
+                        agent_advantage_mean = torch.mean(agent_advantage)
+                        agent_advantage_std = torch.std(agent_advantage)
+                        agent_advantage = (agent_advantage - agent_advantage_mean) / agent_advantage_std
                 # ------------- actor update ---------------
                 self.update_policy(agent_name, agent_obs, agent_action, agent_old_log_prob, agent_advantage)
             info_list.append(self.epoch_info_dict)

@@ -10,8 +10,8 @@ class Actor(nn.Module):
         # torch.manual_seed(self.seed)
         # torch.cuda.manual_seed(self.seed)
         # ---------- log_std_min, log_std_max分别表示变量方差的最小最大的log值 -------
-        self.log_std_min = config.get('log_std_min', -2)
-        self.log_std_max = config.get('log_std_max', 0)
+        self.log_std_min = config.get('log_std_min', -20)
+        self.log_std_max = config.get('log_std_max', 2)
         self.state_size = config['state_dim']
         self.action_size = config['action_dim']
         # self.hidden_size = config.get('hidden_size', 256)

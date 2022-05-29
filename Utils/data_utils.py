@@ -1,7 +1,15 @@
+import pickle
 import torch
 import random
 import numpy as np
 from threading import Lock
+
+import os
+import sys
+current_path = os.path.abspath(__file__)
+root_path = '/'.join(current_path.split('/')[:-2])
+sys.path.append(root_path)
+
 from Utils.SegmentTree import SumSegmentTree, MinSegmentTree
 
 class data_buffer:
@@ -351,7 +359,7 @@ def GAE_estimator_single_agent(data_list, gamma, tau, bootstrap_value):
     # ----------- 这个函数处理两种情况：要么multiagent_scenario,要么是single agent的数据 -------
     advantages = np.ones((len(data_list)), np.float32)
     deltas = np.ones((len(data_list)), np.float32)
-    rewards = np.array([data["instant_reward"] for data in data_list], dtype=np.float32).clip(-1,1)
+    rewards = np.array([data["instant_reward"] for data in data_list], dtype=np.float32)
     dones = [data["done"] for data in data_list]
     try:
         values = [data["old_state_value"] for data in data_list]
