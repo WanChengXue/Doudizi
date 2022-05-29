@@ -78,9 +78,9 @@ class MAPPOTrainer():
         policy_info_dict = dict()
         # -------- 使用当前的policy网络计算一下action的log值，以及这个动作的entropy -------
         try:
-            action_log_probs = self.model[agent_name]['policy'].module.evaluate(agent_obs, agent_action)
+            action_log_probs, entropy = self.model[agent_name]['policy'].module.evaluate(agent_obs, agent_action)
         except:
-            action_log_probs = self.model[agent_name]['policy'].evaluate(agent_obs, agent_action)
+            action_log_probs, entropy = self.model[agent_name]['policy'].evaluate(agent_obs, agent_action)
         # ------ 计算重要性因子 -------
         importance_ratio = torch.exp(agent_old_log_prob - action_log_probs)
         surr1 = importance_ratio * agent_advantage
@@ -95,9 +95,10 @@ class MAPPOTrainer():
             policy_info_dict['Surr3'] = surr3.mean().item()
             surr = torch.max(surr,surr3)
         agent_policy_loss = torch.mean(-surr)
+        entropy_loss = torch.mean(entropy)
         # entropy_loss = -torch.mean(dist_entropy)
         self.optimizer[agent_name]['policy'].zero_grad()
-        total_policy_loss = agent_policy_loss
+        total_policy_loss = agent_policy_loss - self.entropy_coef * entropy_loss
         total_policy_loss.backward()
         agent_policy_grad_norm = nn.utils.clip_grad_norm_(self.model[agent_name]['policy'].parameters(), self.max_grad_norm)
         policy_grad_dict = dict()
@@ -108,6 +109,7 @@ class MAPPOTrainer():
         # policy_info_dict['Entropy_loss'] = entropy_loss.item()
         policy_info_dict['Total_loss'] = total_policy_loss.item()
         policy_info_dict['agent_grad_norm'] = agent_policy_grad_norm.item()
+        policy_info_dict['Entropy_loss'] = entropy_loss.item()
         policy_info_dict['Layer_max_norm'] = policy_grad_dict
         self.epoch_info_dict['Model_policy_{}'.format(agent_name)] = policy_info_dict
     
