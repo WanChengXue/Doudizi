@@ -45,10 +45,10 @@ class Agent():
     
     def compute_action_training_mode(self, obs):
         with torch.no_grad():
-            action = self.policy_net.get_action(obs)
+            action, log_prob= self.policy_net.get_action(obs)
             # ----- 对动作进行clip操作 ------
             clip_action = torch.clamp(action, min=self.action_low, max=self.action_high)
-        return clip_action
+        return clip_action, log_prob
 
     def compute_action_eval_mode(self, obs):
         with torch.no_grad():

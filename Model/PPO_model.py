@@ -14,16 +14,17 @@ class Actor(nn.Module):
         self.log_std_max = config.get('log_std_max', 2)
         self.state_size = config['state_dim']
         self.action_size = config['action_dim']
-        self.default_sigma = config.get('default_sigma', False)
+        self.default_sigma = config.get('default_sigma', True)
         # self.hidden_size = config.get('hidden_size', 256)
         self.hidden_size  = 128
         self.fc1 = nn.Linear(self.state_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, 2* self.hidden_size)
         self.mu = nn.Linear(2* self.hidden_size, self.action_size)
         if self.default_sigma:
-            self.log_std_linear = nn.Linear(2 * self.hidden_size, self.action_size)
-        else:
             self.log_std = nn.Parameter(torch.zeros(1, self.action_size), requires_grad=False)    
+        else:
+             self.log_std_linear = nn.Linear(2 * self.hidden_size, self.action_size)
+            
 
     def forward(self, state):
         x = torch.relu(self.fc1(state))
