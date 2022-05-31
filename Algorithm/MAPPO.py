@@ -73,16 +73,18 @@ class MAPPOTrainer():
         self.optimizer['centralized_critic'].step()
         self.scheduler['centralized_critic'].step()
         self.epoch_info_dict['Model_centralized_critic'] = critic_info_dict
-    
+
+
     def update_policy(self, agent_name, agent_obs, agent_action, agent_old_log_prob, agent_advantage):
         policy_info_dict = dict()
+        # self.test_current_model(agent_name)
         # -------- 使用当前的policy网络计算一下action的log值，以及这个动作的entropy -------
         try:
             action_log_probs, entropy = self.model[agent_name]['policy'].module.evaluate(agent_obs, agent_action)
         except:
             action_log_probs, entropy = self.model[agent_name]['policy'].evaluate(agent_obs, agent_action)
         # ------ 计算重要性因子 -------
-        importance_ratio = torch.exp(agent_old_log_prob - action_log_probs)
+        importance_ratio = torch.exp(action_log_probs - agent_old_log_prob.unsqueeze(-1))
         surr1 = importance_ratio * agent_advantage
         policy_info_dict['Surr1'] = surr1.mean().item()
         # ----------- 使用了PPO算法，这里需要进行clip操作 ---------
@@ -111,6 +113,9 @@ class MAPPOTrainer():
         policy_info_dict['agent_grad_norm'] = agent_policy_grad_norm.item()
         policy_info_dict['Entropy_loss'] = entropy_loss.item()
         policy_info_dict['Layer_max_norm'] = policy_grad_dict
+        self.optimizer[agent_name]['policy'].step()
+        self.scheduler[agent_name]['policy'].step()
+        # self.test_grad_and_new_model(agent_name)
         self.epoch_info_dict['Model_policy_{}'.format(agent_name)] = policy_info_dict
     
     def update_critic(self, agent_name, agent_obs, old_state_value, agent_advantage):
@@ -136,21 +141,38 @@ class MAPPOTrainer():
         # ------- 计算critic loss -----
         self.optimizer[agent_name]['critic'].zero_grad()
         value_loss.backward()
-        critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['critic'].parameters(), self.max_grad_norm)
+        # critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.model[agent_name]['critic'].parameters(), self.max_grad_norm)
         critic_max_grad_dict = {}
         for name, value in self.model[agent_name]['critic'].named_parameters():
             if value.requires_grad:
                 critic_max_grad_dict[name] = torch.max(value.grad).item()
         critic_info_dict['Layer_max_grad'] = critic_max_grad_dict
-        critic_info_dict['critic_grad_norm'] = critic_grad_norm.item()
+        # critic_info_dict['critic_grad_norm'] = critic_grad_norm.item()
         critic_info_dict['critic_loss'] = value_loss.item()
         self.optimizer[agent_name]['critic'].step()
         self.scheduler[agent_name]['critic'].step()
         # ----------- 使用ippo算法更新，每一个智能体都能够算一个TDError，最后的更新权重为对所有的权重计算一个min值 ----------
         self.epoch_info_dict['Model_critic_{}'.format(agent_name)] = critic_info_dict
 
+
+    def test_current_model(self, agent_name):
+        # ------- 测试网路更新之前的模型参数 --------
+        for name, value in self.model[agent_name]['policy'].named_parameters():
+            if value.requires_grad:
+                print(torch.sum(self.data['current_parameter_dict']['actor.' + name.split('module.',1)[-1]].data - value.data))
+
+    def test_grad_and_new_model(self, agent_name):
+        # ----------- 测试使用了数据更新之后的梯度信息,以及新模型 ------------
+        for name, value in self.model[agent_name]['policy'].named_parameters():
+            if value.requires_grad:
+                # ---------- 测试梯度信息 -------------
+                print(torch.sum(self.data['grad']['actor.' + name.split('module.',1)[-1]] - value.grad))
+                # ---------- 测试新模型 ------------
+                print(torch.sum(self.data['new_model_parameter']['actor.' + name.split('module.',1)[-1]].data - value.data))
+
     def step(self, training_data):
         info_list = []
+        # self.load_model()
         for ep in range(self.ppo_update_epoch):
             self.epoch_info_dict = dict()
             if self.use_centralized_critic:
@@ -186,6 +208,19 @@ class MAPPOTrainer():
                 # ------------- actor update ---------------
                 self.update_policy(agent_name, agent_obs, agent_action, agent_old_log_prob, agent_advantage)
             info_list.append(self.epoch_info_dict)
-        # ---------- 将所有epoch的loss平均一下 ----------
+            # --------- 载入数据 ------------
+            # import pickle 
+            # batch_data_file = open('training_data.pickle', 'rb')
+            # batch_data = pickle.load(batch_data_file)
+            # for key in batch_data.keys():
+            #     data = batch_data[key]
+            #     self.data = data
+            #     for agent_name in self.agent_name_list:
+            #         agent_advantage = data['preprocess_advatange']
+            #         agent_obs = torch.as_tensor(data['obs'], dtype=torch.float32).to(0)
+            #         agent_action = data['action']
+            #         agent_old_log_prob = data['old_log_prob']
+            #         self.update_policy(agent_name, agent_obs, agent_action, agent_old_log_prob, agent_advantage)
+        # # ---------- 将所有epoch的loss平均一下 ----------
         mean_dict = mean_info_dict(info_list)
         return mean_dict

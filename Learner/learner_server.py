@@ -121,18 +121,20 @@ class learner_server(base_server):
             
     def load_model(self, model, name):
         if name == 'policy':
-            policy_state_dict = torch.load('actor.model')
-            # ---- 添加一个额外的变量 -----
-            policy_state_dict['log_alpha'] = torch.tensor([0.0]).to(0)
-            model.load_state_dict(policy_state_dict)
-        elif name == 'critic':
-            critic_state_dict = torch.load('critic_1.model')
-            model.load_state_dict(critic_state_dict)
-        elif name == 'double_critic':
-            double_critic_state_dcit = torch.load('critic_2.model')
-            model.load_state_dict(double_critic_state_dcit)
-        else:
-            pass 
+            saved_model_path = torch.load('policy.pth')
+            model_dict = dict()
+            for key in model.state_dict().keys():
+                model_dict[key] = saved_model_path['actor.'+key].cpu()
+            model.load_state_dict(model_dict)
+
+        # elif name == 'critic':
+        #     critic_state_dict = torch.load('critic_1.model')
+        #     model.load_state_dict(critic_state_dict)
+        # elif name == 'double_critic':
+        #     double_critic_state_dcit = torch.load('critic_2.model')
+        #     model.load_state_dict(double_critic_state_dcit)
+        # else:
+        #     pass 
 
     def load_target_model(self, model, name):
         if name == 'policy':
@@ -172,6 +174,7 @@ class learner_server(base_server):
                         if self.load_data_from_model_pool and model_type == 'policy':
                             self.logger.info('----------- 载入预训练模型，模型的保存路径为:{} ----------'.format(model_config['model_path']))
                             deserialize_model(self.model[agent_name][model_type], model_config['model_path'])
+                        # self.load_model(self.model[agent_name][model_type], model_type)
                         self.optimizer[agent_name][model_type] = torch.optim.Adam(self.model[agent_name][model_type].parameters(), lr=float(model_config['learning_rate']))
                         self.scheduler[agent_name][model_type] = CosineAnnealingWarmRestarts(self.optimizer[agent_name][model_type], self.policy_config['T_zero'])
             if self.use_centralized_critic:
@@ -244,11 +247,14 @@ class learner_server(base_server):
                 # --------- 更新buffer中的权重，再把这个plasma id塞回去 --------
                 self.plasma_id_for_weight_queue.put(weight_plasma_id)
             else:
-                data_convert_start_time = time.time()
-                torch_training_batch = convert_data_format_to_torch_trainig(training_batch,self.local_rank)
-                self.convert_data_time.append(time.time() - data_convert_start_time)
+                if training_batch is None:
+                    info =self.algo.step(None)
+                else:
+                    data_convert_start_time = time.time()
+                    torch_training_batch = convert_data_format_to_torch_trainig(training_batch,self.local_rank)
+                    self.convert_data_time.append(time.time() - data_convert_start_time)
 
-                info = self.algo.step(torch_training_batch)
+                    info = self.algo.step(torch_training_batch)
             self.logger.info("----------- 完成一次参数更新，更新的信息为 {} -------------".format(info))
             self.recursive_send(info, None, self.policy_name)
         else:
@@ -296,6 +302,7 @@ class learner_server(base_server):
         start_time = time.time()
         selected_plasma_id = self.plasma_id_queue.get()
         batch_data = self.plasma_client.get(selected_plasma_id)
+        # batch_data = None
         if self.global_rank == 0:
             self.wait_data_times.append(time.time()-start_time)
         self._training(batch_data)

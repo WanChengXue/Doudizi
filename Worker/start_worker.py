@@ -19,7 +19,7 @@ if __name__=='__main__':
     # ---------- 导入配置文件 ------------
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', type=str, default='/Config/Training/MAPPO_config.yaml')
-    parser.add_argument('--parallel_env', type=int, default=30)
+    parser.add_argument('--parallel_env', type=int, default=10)
     args = parser.parse_args()
     abs_path = '/'.join(os.path.abspath(__file__).split('/')[:-2])
     concatenate_path = abs_path + args.config_path

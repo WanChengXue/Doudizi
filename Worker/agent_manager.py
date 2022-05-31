@@ -118,9 +118,14 @@ class Agent_manager:
                     assert len(log_prob_dict[agent_name]) == 1, '------------- 确保概率必须是一个长度为1的numpy类型数据 ----------'
                 else:
                     network_output = self.agent[agent_name].compute_action_training_mode(torch_type_data[agent_name])
-            network_output = network_output.squeeze(0).numpy()
-            network_decision[agent_name] = network_output.tolist()
-            assert isinstance(network_decision[agent_name], list), '------------ 网络的输出结果需要是一个列表 -----------'
+            if isinstance(network_output, dict):
+                network_decision[agent_name] = dict()
+                for key in network_output.keys():
+                    network_decision[agent_name][key] = network_output[key].squeeze(0).numpy().tolist()
+            else:
+                network_output = network_output.squeeze(0).numpy()
+                network_decision[agent_name] = network_output.tolist()
+                assert isinstance(network_decision[agent_name], list), '------------ 网络的输出结果需要是一个列表 -----------'
         # --------- 确保这个输出结果是一个一维list --------
         if self.policy_based_RL:
             return network_decision, log_prob_dict

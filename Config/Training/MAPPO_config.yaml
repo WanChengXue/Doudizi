@@ -43,7 +43,7 @@ policy_config:
   main_machine_index: 0
   machine_list: ['10.19.93.9']
   # 定义一个设备对应与多少个数据server
-  server_number_per_device: 2
+  server_number_per_device: 1
   # 定义一个机器有多少个设备
   device_number_per_machine: 1
   # -- 这个参数表示的是数据服务开始端口 ----------
@@ -68,7 +68,7 @@ policy_config:
   max_trajectory_length: 1000
   # --------- 使用n step TD -----
   n_step: &n_step 1
-  gamma: &gamma 0.99
+  gamma: &gamma 0.95
   tau: &tau 0.95
   # ------ 设置模型的保存路径 ——----------
   # ======= 两个路径一个是最新的模型构成的模型池，另外一个是每训练若干次保存下来的模型 =====
@@ -95,8 +95,8 @@ policy_config:
     clip_value: False
     max_grad_norm: 0.5
     clip_epsilon: 0.2
-    dual_clip: 2
-    entropy_coef: 0.01
+    # dual_clip: 2
+    entropy_coef: 0.0
     # ===== discount ratio =====
     gamma: *gamma
     # ------- n_step TD -------
@@ -107,7 +107,7 @@ policy_config:
   agent:
     default:
       policy:
-        learning_rate: 5e-5
+        learning_rate: 1e-3
         state_dim: &state_dim 28
         action_dim: &action_dim 8
         model_name: 'PPO_model'

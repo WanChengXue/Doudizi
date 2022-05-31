@@ -29,7 +29,7 @@ class Actor(nn.Module):
     def forward(self, state):
         x = torch.relu(self.fc1(state))
         x = torch.relu(self.fc2(x))
-        mu = self.mu(x)
+        mu = torch.tanh(self.mu(x))
         if self.default_sigma:
             batch_size = mu.shape[0]
             log_std = self.log_std.repeat(batch_size, 1)
@@ -60,15 +60,6 @@ class Actor(nn.Module):
         mu, log_std = self.forward(state)
         std = log_std.exp()
         dist = Independent(Normal(mu, std),1)
-        # -------- 需要通过计算反sigmoid函数，得到采样的值 -------
-        # sample_data = torch.atanh(action)
-        # # -------- 计算采用的噪声向量 --------
-        # noise_vector = (sample_data-mu) / std
-        # # -------- 重新计算e，action，这次是要带梯度的 --------
-        # e = mu + std * noise_vector.data
-        # action_with_graph = torch.tanh(e)
-        # # -------- 然后再计算出条件概率 ----------
-        # log_prob = (dist.log_prob(e) - torch.log(1 - action_with_graph.pow(2) + epsilon)).sum(1, keepdim=True)
         log_prob = dist.log_prob(action)
         entropy = dist.entropy()
         # entropy = dist.entropy()

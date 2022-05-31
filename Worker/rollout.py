@@ -70,8 +70,15 @@ class sample_generator:
         return state_dict
 
     def _generate_action(self, action_dict):
+        raw_action_dict = dict()
         if self.agent_nums == 1:
-            return action_dict[self.agent_name_list[0]]
+            if isinstance(action_dict[self.agent_name_list[0]], dict):
+                raw_action_dict[self.agent_name_list[0]] = action_dict[self.agent_name_list[0]]['raw_action']
+                env_action = action_dict[self.agent_name_list[0]]['clip_action']
+            else:
+                raw_action_dict = deepcopy(action_dict)
+                env_action = action_dict[self.agent_name_list[0]]
+            return raw_action_dict, env_action
         else:
             pass
             return action_dict
@@ -165,7 +172,7 @@ class sample_generator:
                 action_dict, log_prob_dict = self.agent.compute(current_agent_obs)
             else:
                 action_dict = self.agent.compute(current_agent_obs)
-            action = self._generate_action(action_dict)
+            raw_action, action = self._generate_action(action_dict)
             next_centralized_state, instant_reward, done, info = self.env.step(action)
             next_agent_obs = self._generate_obs(next_centralized_state)
             step += 1
@@ -187,7 +194,7 @@ class sample_generator:
                 for agent_name in self.agent_name_list:
                     episodic_dict[agent_name] = dict()
                     episodic_dict[agent_name]['current_agent_obs'] = deepcopy(current_agent_obs[agent_name])
-                    episodic_dict[agent_name]['actions'] = deepcopy(action_dict[agent_name])
+                    episodic_dict[agent_name]['actions'] = deepcopy(raw_action[agent_name])
                     n_step_reward_list[agent_name].append(instant_reward)
                     if self.policy_based_RL:
                         episodic_dict[agent_name]['old_obs_value'] = obs_value_dict[agent_name]
