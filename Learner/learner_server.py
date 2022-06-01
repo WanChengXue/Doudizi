@@ -121,20 +121,17 @@ class learner_server(base_server):
             
     def load_model(self, model, name):
         if name == 'policy':
-            saved_model_path = torch.load('policy.pth')
-            model_dict = dict()
-            for key in model.state_dict().keys():
-                model_dict[key] = saved_model_path['actor.'+key].cpu()
+            model_dict = torch.load('policy_net.model')
             model.load_state_dict(model_dict)
 
-        # elif name == 'critic':
-        #     critic_state_dict = torch.load('critic_1.model')
-        #     model.load_state_dict(critic_state_dict)
-        # elif name == 'double_critic':
-        #     double_critic_state_dcit = torch.load('critic_2.model')
-        #     model.load_state_dict(double_critic_state_dcit)
-        # else:
-        #     pass 
+        elif name == 'critic':
+            critic_state_dict = torch.load('critic_net.model')
+            model.load_state_dict(critic_state_dict)
+        elif name == 'double_critic':
+            double_critic_state_dcit = torch.load('critic_2.model')
+            model.load_state_dict(double_critic_state_dcit)
+        else:
+            pass 
 
     def load_target_model(self, model, name):
         if name == 'policy':

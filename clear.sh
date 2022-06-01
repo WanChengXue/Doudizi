@@ -10,3 +10,5 @@ rm -rf Worker/Download_model/*
 # rm -rf Data_saved/multi_point_heterogeneous_policy
 rm -rf nohup.out
 # rm -rf Exp
+
+ps -ef | grep multiprocessing.spawn | grep -v grep | awk '{print "kill "$2}' | sh

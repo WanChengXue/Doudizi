@@ -56,7 +56,7 @@ policy_config:
   policy_based_RL: True
   # Pytorch DDP相关
   ddp_port: 50001
-  batch_size: &batch_size 256
+  batch_size: &batch_size 1024
   plasma_server_location: Plasma_server/plasma
   # ------- 这两个参数在训练RL的时候会使用到，如果都是False，说明actor和critic在一起 --------
   centralized_critic: &centralized_critic False
@@ -95,7 +95,7 @@ policy_config:
     clip_value: False
     max_grad_norm: 0.5
     clip_epsilon: 0.2
-    # dual_clip: 2
+    dual_clip: 2
     entropy_coef: 0.0
     # ===== discount ratio =====
     gamma: *gamma
@@ -107,14 +107,14 @@ policy_config:
   agent:
     default:
       policy:
-        learning_rate: 1e-3
+        learning_rate: 1e-4
         state_dim: &state_dim 28
         action_dim: &action_dim 8
         model_name: 'PPO_model'
         model_type: 'policy'
     
       critic:
-        learning_rate: 1e-3
+        learning_rate: 1e-4
         model_name: 'PPO_model'
         model_type: critic
         state_dim: *state_dim

@@ -15,8 +15,7 @@ class Actor(nn.Module):
         self.state_size = config['state_dim']
         self.action_size = config['action_dim']
         self.default_sigma = config.get('default_sigma', True)
-        # self.hidden_size = config.get('hidden_size', 256)
-        self.hidden_size  = 128
+        self.hidden_size = config.get('hidden_size', 256)
         self.fc1 = nn.Linear(self.state_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, 2* self.hidden_size)
         self.mu = nn.Linear(2* self.hidden_size, self.action_size)
