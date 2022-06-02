@@ -104,7 +104,7 @@ class Agent_manager:
     def compute(self, obs):
         torch_type_data = convert_data_format_to_torch_interference(obs)
         network_decision = dict()
-        if self.policy_based_RL:
+        if self.policy_based_RL and not self.eval_mode:
             log_prob_dict = dict()
         for agent_name in torch_type_data.keys():
             # --------- torch_type_data的key必须和agent name list是一致的 ----------
@@ -127,7 +127,7 @@ class Agent_manager:
                 network_decision[agent_name] = network_output.tolist()
                 assert isinstance(network_decision[agent_name], list), '------------ 网络的输出结果需要是一个列表 -----------'
         # --------- 确保这个输出结果是一个一维list --------
-        if self.policy_based_RL:
+        if self.policy_based_RL and not self.eval_mode:
             return network_decision, log_prob_dict
         else:
             return network_decision

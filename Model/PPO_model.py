@@ -20,14 +20,14 @@ class Actor(nn.Module):
         self.fc2 = nn.Linear(self.hidden_size, 2* self.hidden_size)
         self.mu = nn.Linear(2* self.hidden_size, self.action_size)
         if self.default_sigma:
-            self.log_std = nn.Parameter(torch.zeros(1, self.action_size), requires_grad=False)    
+            self.log_std = nn.Parameter(-0.5* torch.ones(1, self.action_size), requires_grad=False)    
         else:
              self.log_std_linear = nn.Linear(2 * self.hidden_size, self.action_size)
             
 
     def forward(self, state):
-        x = torch.relu(self.fc1(state))
-        x = torch.relu(self.fc2(x))
+        x = torch.tanh(self.fc1(state))
+        x = torch.tanh(self.fc2(x))
         mu = torch.tanh(self.mu(x))
         if self.default_sigma:
             batch_size = mu.shape[0]

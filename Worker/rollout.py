@@ -78,7 +78,11 @@ class sample_generator:
             else:
                 raw_action_dict = deepcopy(action_dict)
                 env_action = action_dict[self.agent_name_list[0]]
-            return raw_action_dict, env_action
+
+            if self.eval_mode:
+                return env_action
+            else:      
+                return raw_action_dict, env_action
         else:
             pass
             return action_dict
@@ -135,6 +139,7 @@ class sample_generator:
             current_centralized_state = next_centralized_state
             if done:
                 break
+        print('------------ 测试环境,累计奖励和为 :{} --------------'.format(sum(reward_list)))
 
     def rollout_one_episode_evaluate(self):
         self.logger.info("------------- evaluate 程序 {} 开始启动 ------------".format(self.uuid[:6]))
@@ -269,7 +274,7 @@ class sample_generator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Config/Training/MAPPO_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Config/Testing/MAPPO_eval_config.yaml')
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config
     args = parser.parse_args()

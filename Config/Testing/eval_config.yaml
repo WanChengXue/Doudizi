@@ -5,7 +5,7 @@ env:
   tls_list: ['1']
   show_gui: True
 # 定义日志文件的文件夹
-log_dir: "./logs"
+log_dir: "Exp/Log"
 policy_name: 'default_policy'
 policy_config:
   training_type: 'supervised_learning'

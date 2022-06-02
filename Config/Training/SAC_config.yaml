@@ -15,7 +15,7 @@ warmup_time: 0
 main_server_ip: '10.19.93.9'
 # 10.19.93.9
 # 定义日志文件的文件夹
-log_dir: "./logs"
+log_dir: "Exp/Log"
 # 定义日志服务器的端口
 log_server_port: 8100
 # 这个表示的是将历史的模型保存20个

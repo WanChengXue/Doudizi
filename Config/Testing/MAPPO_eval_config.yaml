@@ -1,38 +1,40 @@
 # 这个是用来执行独立MARL环境
 env:
+  # 并行化环境的数目
+  parallel_env: 100
   env_name: MinitaurBulletEnv-v0
+  # ------- 定义动作空间和状态空间的维度 --------------
+  agent_nums: 1
   agent_name_list: ['default']
 
-policy_name: 'D4PG_Exp'
+policy_name: 'MAPPO_exp'
 # 定义日志文件的文件夹
 log_dir: "Exp/Log"
 # ----  这个变量表示要不要从model pool中载入模型 -----
 load_data_from_model_pool: True
 policy_config:
-  training_type: 'RL'
+  policy_type: 'latest'
   eval_mode: True
-  agent_name: 'd4pg_agent'
-
+  training_type: 'RL'
+  algorithm: MAPPO
+  agent_name: 'mappo_agent'
+  policy_based_RL: True
   # ======= 两个路径一个是最新的模型构成的模型池，另外一个是每训练若干次保存下来的模型 =====
   pretrained_model_path: "Exp/Model/model_pool/"
   saved_model_path: "Exp/Model/saved_model/"
   # ----- 只有一个智能体，显然是参数共享和同质化都是True ---------
-  parameter_sharing: &parameter_sharing False
+  parameter_sharing: False
+    # -------- soft-update parameter ----
+
+  # ------- 智能体相关的参数 ----------
   agent:
-    # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
     default:
       policy:
         state_dim: &state_dim 28
         action_dim: &action_dim 8
-        model_name: 'FC_model'
+        model_name: 'PPO_model'
         model_type: 'policy'
 
-      # -------- 定义探索策略 ------
-      action_dim: *action_dim
-      action_low: -1
-      action_high: 1
-      eval_mode: True
-  # --------- 如果出现了中心化的critic,优先级和agent并列 ----------
 
 
 

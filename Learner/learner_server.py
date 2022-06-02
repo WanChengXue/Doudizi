@@ -256,8 +256,8 @@ class learner_server(base_server):
             self.recursive_send(info, None, self.policy_name)
         else:
             self.logger.info("----------- 模型处于预热阶段，不更新参数 ----------")
-        # if self.total_training_steps % 20 == 0:
-        #     self._test_model()
+        if self.total_training_steps % 400 == 0:
+            self._test_model()
 
     def _test_model(self):
         import gym
@@ -270,7 +270,11 @@ class learner_server(base_server):
         current_state = env.reset()
         while True:
             with torch.no_grad():
-                action = self.model['default']['policy'](torch.FloatTensor(current_state).unsqueeze(0).to(0)).cpu().squeeze().numpy()
+                action = self.model['default']['policy'](torch.FloatTensor(current_state).unsqueeze(0).to(0))
+                if isinstance(action, tuple):
+                    action = action[0].squeeze().cpu().numpy()
+                else:
+                    action = action.squeeze().cpu().numpy()
             next_state, instant_reward, done, _  = env.step(action)
             reward_list.append(instant_reward)
             current_state = next_state
