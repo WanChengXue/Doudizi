@@ -1,3 +1,11 @@
+'''
+Author: error: git config user.name && git config user.email & please set dead value or install git
+Date: 2022-08-13 14:55:26
+LastEditors: error: git config user.name && git config user.email & please set dead value or install git
+LastEditTime: 2022-08-15 22:30:04
+FilePath: /RLFramework/Utils/model_utils.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
 from collections import OrderedDict
 import torch
 import importlib
@@ -55,7 +63,7 @@ def deserialize_model(model_object, model_parameter_dict, device='cpu'):
 
 def create_model(model_config):
     model_name = model_config['model_name']
-    model_fn = getattr(importlib.import_module("Model.{}".format(model_name)), 'init_{}_net'.format(model_config['model_type']))
+    model_fn = getattr(importlib.import_module("Model.{}".format(model_name)), 'init_{}_{}_net'.format(model_config['model_type'], model_config['agent_name']))
     return model_fn(model_config)
     
 

@@ -79,7 +79,7 @@ class learner_server(base_server):
         if self.priority_replay_buffer:
             self.create_plasma_server_for_prioritized_replay_buffer()
         # ------------- 连接plasma 服务，这个地方需要提前启动这个plasma服务，然后让client进行连接 -------------
-        self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
+        # self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
         # ------------- 这个列表是等待数据的时间 -------------
         self.wait_data_times = []
         # ------------- 定义一个变量，观察在一分钟之内参数更新了的次数 -------------
@@ -119,35 +119,6 @@ class learner_server(base_server):
                 self.target_model[agent_name] = create_model(model_config)
                 self.target_model[agent_name].load_state_dict(self.model[agent_name].state_dict())
             
-    def load_model(self, model, name):
-        if name == 'policy':
-            model_dict = torch.load('policy_net.model')
-            model.load_state_dict(model_dict)
-
-        elif name == 'critic':
-            critic_state_dict = torch.load('critic_net.model')
-            model.load_state_dict(critic_state_dict)
-        elif name == 'double_critic':
-            double_critic_state_dcit = torch.load('critic_2.model')
-            model.load_state_dict(double_critic_state_dcit)
-        else:
-            pass 
-
-    def load_target_model(self, model, name):
-        if name == 'policy':
-            policy_state_dict = torch.load('actor.model')
-            # ---- 添加一个额外的变量 -----
-            policy_state_dict['log_alpha'] = torch.tensor([0.0]).to(0)
-            model.load_state_dict(policy_state_dict)
-        elif name == 'critic':
-            critic_state_dict = torch.load('critic_1_target.model')
-            model.load_state_dict(critic_state_dict)
-        elif name == 'double_critic':
-            double_critic_state_dcit = torch.load('critic_2_target.model')
-            model.load_state_dict(double_critic_state_dcit)
-        else:
-            pass 
-        
     def construct_model(self):
         self.optimizer = {}
         self.model = {}
@@ -159,21 +130,22 @@ class learner_server(base_server):
             pass
         else:
             for agent_name in self.agent_name_list:
-                self.optimizer[agent_name] = dict()
-                self.model[agent_name] = dict()
-                self.scheduler[agent_name] = dict()
-                self.model_path[agent_name] = dict()
-                for model_type in self.policy_config['agent'][agent_name].keys():
-                    if model_type in ['policy', 'critic', 'double_critic']:
-                        model_config = deepcopy(self.policy_config['agent'][agent_name][model_type])
-                        self.model[agent_name][model_type] = create_model(model_config)
-                        # ------- 如果在原有的基础上进行RL的训练，就需要载入预训练模型了 ---------
-                        if self.load_data_from_model_pool and model_type == 'policy':
-                            self.logger.info('----------- 载入预训练模型，模型的保存路径为:{} ----------'.format(model_config['model_path']))
-                            deserialize_model(self.model[agent_name][model_type], model_config['model_path'])
-                        # self.load_model(self.model[agent_name][model_type], model_type)
-                        self.optimizer[agent_name][model_type] = torch.optim.Adam(self.model[agent_name][model_type].parameters(), lr=float(model_config['learning_rate']))
-                        self.scheduler[agent_name][model_type] = CosineAnnealingWarmRestarts(self.optimizer[agent_name][model_type], self.policy_config['T_zero'])
+                if self.policy_config['agent'][agent_name]['trained_flag']:
+                    self.optimizer[agent_name] = dict()
+                    self.model[agent_name] = dict()
+                    self.scheduler[agent_name] = dict()
+                    self.model_path[agent_name] = dict()
+                    for model_type in self.policy_config['agent'][agent_name].keys():
+                        if model_type in ['policy', 'critic', 'double_critic']:
+                            model_config = deepcopy(self.policy_config['agent'][agent_name][model_type])
+                            self.model[agent_name][model_type] = create_model(model_config)
+                            # ------- 如果在原有的基础上进行RL的训练，就需要载入预训练模型了 ---------
+                            if self.load_data_from_model_pool and model_type == 'policy':
+                                self.logger.info('----------- 载入预训练模型，模型的保存路径为:{} ----------'.format(model_config['model_path']))
+                                deserialize_model(self.model[agent_name][model_type], model_config['model_path'])
+                            # self.load_model(self.model[agent_name][model_type], model_type)
+                            self.optimizer[agent_name][model_type] = torch.optim.Adam(self.model[agent_name][model_type].parameters(), lr=float(model_config['learning_rate']))
+                            self.scheduler[agent_name][model_type] = CosineAnnealingWarmRestarts(self.optimizer[agent_name][model_type], self.policy_config['T_zero'])
             if self.use_centralized_critic:
                 model_config = deepcopy(self.policy_config['agent']['centralized_critic'])
                 self.model['centralized_critic'] = create_model(model_config)
@@ -358,7 +330,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank', default= 0, type=int, help="rank of current process")
     parser.add_argument('--world_size', default=1, type=int, help='total gpu card')
     parser.add_argument('--init_method', default='tcp://120.0.0.1:23456')
-    parser.add_argument('--config_path', type=str, default='Config/Training/MAPPO_config.yaml', help='yaml format config')
+    parser.add_argument('--config_path', type=str, default='Config/Training/DQN_config.yaml', help='yaml format config')
     args = parser.parse_args()
     # abs_path = '/'.join(os.path.abspath(__file__).splits('/')[:-2])
     # concatenate_path = abs_path + '/' + args.config_path

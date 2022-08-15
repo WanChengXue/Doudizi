@@ -14,14 +14,13 @@ current_path = os.path.abspath(__file__)
 root_path = '/'.join(current_path.split('/')[:-2])
 sys.path.append(root_path)
 
-import gym
-import pybullet_envs
+
 from Utils.config import parse_config
 from Utils.utils import setup_logger
 from Utils.data_utils import GAE_estimator
 from Worker.statistic import StatisticsUtils
 from Worker.agent_manager import Agent_manager
-
+from Env.env_utils import Environment
 class sample_generator:
     def __init__(self, config_path, port_num=None):
         self.config_dict = parse_config(config_path, parser_obj='rollout')
@@ -42,9 +41,9 @@ class sample_generator:
             self.transmit_interval = self.policy_config['woker_transmit_interval']
             # -------   如果说训练类型是RL，就需要不断使用policy fetcher获取最新的模型 --------
             self.update_policy = self.policy_config['training_type'] != 'supervised_learning'
-            self.env = gym.make(self.config_dict['env']['env_name'])
+            self.env = Environment()
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
-        self.agent.reset()
+        # self.agent.reset()
         self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
         self.policy_based_RL = self.config_dict['policy_config'].get('policy_based_RL', False)
         self.logger.info("---------------- 完成sampler的构建 ------------")
@@ -125,21 +124,6 @@ class sample_generator:
                 self._revise_episodic_dict(episodic_dict, n_step_reward_list, done, next_agent_obs, next_centralized_state)
                 data_dict.append(episodic_dict)
 
-    def rollout_one_episode_evaluate_by_agent(self):
-        reward_list = []
-        from pybullet_envs.bullet.minitaur_gym_env import MinitaurBulletEnv
-        eval_env = MinitaurBulletEnv(render=True)
-        current_centralized_state = eval_env.reset()
-        while True:
-            current_agent_obs = self._generate_obs(current_centralized_state)
-            action_dict = self.agent.compute(current_agent_obs)
-            action = self._generate_action(action_dict)
-            next_centralized_state, instant_reward, done, info = eval_env.step(action)
-            reward_list.append(instant_reward)
-            current_centralized_state = next_centralized_state
-            if done:
-                break
-        print('------------ 测试环境,累计奖励和为 :{} --------------'.format(sum(reward_list)))
 
     def rollout_one_episode_evaluate(self):
         self.logger.info("------------- evaluate 程序 {} 开始启动 ------------".format(self.uuid[:6]))
@@ -274,7 +258,7 @@ class sample_generator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Config/Testing/MAPPO_eval_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Config/Training/DQN_config.yaml')
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config
     args = parser.parse_args()
