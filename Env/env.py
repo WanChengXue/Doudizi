@@ -47,7 +47,7 @@ class Env:
         elif dipai[1] == dipai[0] + 1 and dipai[1] == dipai[2] -1:
             self.dipai_beishu = 3
         else:
-            pass
+            self.dipai_beishu = 1
 
     def is_chuantian(self):
         # 春天只可能出现在地主端，判断农民是不是17张牌就可以了
@@ -119,7 +119,7 @@ class Env:
         else:
             # ----- 农民胜利 ------
             landlord_reward = -self.jiaodizhu_beishu * self.dipai_beishu * (2.0 ** bomb_num)
-        reward_dict = {"landlord_reward": landlord_reward, "farmer_reward": -landlord_reward}
+        reward_dict = {"landlord": landlord_reward, "farmer": -landlord_reward}
         return reward_dict
     @property
     def _game_infoset(self):

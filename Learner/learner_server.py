@@ -48,7 +48,7 @@ class learner_server(base_server):
         self.logger.info('================ 开始初始化模型 ===========')
         # ------------ 默认是多机多卡，然后这个local rank表示的是某台机器上卡的相对索引 ----------
         self.machine_index = self.global_rank // self.policy_config['device_number_per_machine']
-        self.agent_name_list = self.config_dict['env']['agent_name_list']
+        self.agent_name_list = self.config_dict['env']['trained_agent_name_list']
         self.parameter_sharing = self.policy_config['parameter_sharing']
         self.use_centralized_critic = self.policy_config['use_centralized_critic']
         self.load_data_from_model_pool = self.config_dict.get('load_data_from_model_pool', False)
@@ -79,7 +79,7 @@ class learner_server(base_server):
         if self.priority_replay_buffer:
             self.create_plasma_server_for_prioritized_replay_buffer()
         # ------------- 连接plasma 服务，这个地方需要提前启动这个plasma服务，然后让client进行连接 -------------
-        # self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
+        self.plasma_client = plasma.connect(self.policy_config['plasma_server_location'], 2)
         # ------------- 这个列表是等待数据的时间 -------------
         self.wait_data_times = []
         # ------------- 定义一个变量，观察在一分钟之内参数更新了的次数 -------------
@@ -166,7 +166,6 @@ class learner_server(base_server):
                         self.model[agent_name][model_type].to(self.local_rank).train()
                         if self.policy_config.get('using_target_network', False):
                             self.target_model[agent_name][model_type].to(self.local_rank)
-                            self.load_target_model(self.target_model[agent_name][model_type], model_type)
                         self.model[agent_name][model_type] = DDP(self.model[agent_name][model_type], device_ids=[self.local_rank])
                 else:
                     self.model[agent_name].to(self.local_rank).train()

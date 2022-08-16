@@ -2,7 +2,7 @@
 Author: error: git config user.name && git config user.email & please set dead value or install git
 Date: 2022-08-15 20:59:32
 LastEditors: error: git config user.name && git config user.email & please set dead value or install git
-LastEditTime: 2022-08-15 21:57:11
+LastEditTime: 2022-08-16 21:32:08
 FilePath: /RLFramework/Algorithm/DQN.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -23,7 +23,7 @@ class DQNTrainer():
         self.optimizer = optimizer
         self.scheduler = scheduler
         # [landlord, farmer]
-        self.agent_name = self.policy_config['agent_name']
+        self.agent_name = list(self.model.keys())[0]
         self.gamma = self.policy_config['gamma']
         self.critic_loss = nn.MSELoss()
     

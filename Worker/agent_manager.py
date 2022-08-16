@@ -24,6 +24,7 @@ class Agent_manager:
         self.policy_config = self.config_dict['policy_config']
         # ---------- 智能体的名称,统一用env字段中的 ---------
         self.agent_name_list = self.config_dict['env']['agent_name_list']
+        self.trained_agent_name_list = self.config_dict['env']['trained_agent_name_list']
         self.model_info = None
         self.logger = logger
         # ---------- eavl mode ----------
@@ -108,7 +109,7 @@ class Agent_manager:
             log_prob_dict = dict()
         for agent_name in torch_type_data.keys():
             # --------- torch_type_data的key必须和agent name list是一致的 ----------
-            assert agent_name in self.agent_name_list, '----- torch_type_data的key和agent name list必须要一致 --------'
+            assert agent_name in self.trained_agent_name_list, '----- torch_type_data的key和agent name list必须要一致 --------'
             if self.eval_mode:
                 network_output = self.agent[agent_name].compute_action_eval_mode(torch_type_data[agent_name])
             else:
@@ -121,9 +122,9 @@ class Agent_manager:
             if isinstance(network_output, dict):
                 network_decision[agent_name] = dict()
                 for key in network_output.keys():
-                    network_decision[agent_name][key] = network_output[key].squeeze(0).numpy().tolist()
+                    network_decision[agent_name][key] = network_output[key].numpy().tolist()
             else:
-                network_output = network_output.squeeze(0).numpy()
+                network_output = network_output.numpy()
                 network_decision[agent_name] = network_output.tolist()
                 assert isinstance(network_decision[agent_name], list), '------------ 网络的输出结果需要是一个列表 -----------'
         # --------- 确保这个输出结果是一个一维list --------
@@ -141,7 +142,7 @@ class Agent_manager:
         else:
             torch_type_data = convert_data_format_to_torch_interference(obs)
             old_state_value = dict()
-            for agent_name in self.agent_name_list:
+            for agent_name in self.trained_agent_name_list:
                 agent_state_value = self.agent[agent_name].compute_state_value(torch_type_data[agent_name])
                 old_state_value[agent_name] = agent_state_value.squeeze(0).numpy()
         return old_state_value
@@ -159,7 +160,7 @@ class Agent_manager:
 
         if model_info is not None:
             # ---------- 当获取到了最新的模型后，进行模型之间的同步 ------------
-            for agent_name in self.agent_name_list:
+            for agent_name in self.trained_agent_name_list:
                 self.agent[agent_name].synchronize_model(model_info[agent_name])
 
             if self.multiagent_scenario:

@@ -1,3 +1,11 @@
+'''
+Author: error: git config user.name && git config user.email & please set dead value or install git
+Date: 2022-08-16 20:05:39
+LastEditors: error: git config user.name && git config user.email & please set dead value or install git
+LastEditTime: 2022-08-16 21:34:13
+FilePath: /Doudizi/Worker/start_worker.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
 import multiprocessing
 from multiprocessing import Process
 import argparse
@@ -18,7 +26,7 @@ def single_process_generate_sample(config_path, port_num):
 if __name__=='__main__':
     # ---------- 导入配置文件 ------------
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', type=str, default='/Config/Training/MAPPO_config.yaml')
+    parser.add_argument('--config_path', type=str, default='/Config/Training/DQN_config.yaml')
     parser.add_argument('--parallel_env', type=int, default=4)
     args = parser.parse_args()
     abs_path = '/'.join(os.path.abspath(__file__).split('/')[:-2])

@@ -45,7 +45,7 @@ class data_receiver_server(base_server):
         self.priority_replay_buffer = self.policy_config.get('priority_replay_buffer', False)
         # ----------- 这个变量表示的是这是不是多智能体合作场景，默认为False -------------
         self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
-        self.agent_name_list = self.config_dict['env']['agent_name_list']
+        self.agent_name_list = self.config_dict['env']['trained_agent_name_list']
         self._parse_server_id_and_connect_server()
         self._define_performance_parameters()
         if not self.read_data_from_local_machine:

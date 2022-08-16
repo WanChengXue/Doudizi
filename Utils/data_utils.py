@@ -173,6 +173,7 @@ class prioritized_replay_buffer():
 
 
 def convert_data_format_to_torch_interference(obs_dict):
+    # ------- 这个函数将除了legal action之外的值变成tensor ------
     torch_format_dict = dict()
     for key,value in obs_dict.items():
         if isinstance(value, dict):

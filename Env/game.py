@@ -86,10 +86,11 @@ class GameEnv(object):
         if len(self.info_sets['landlord'].player_hand_cards) == 0:
             self.player_utility_dict = {'landlord': 1,
                                         'farmer': -1}
+            self.winner = 'landlord'
         else:
             self.player_utility_dict = {'landlord': -1,
                                         'farmer': 1}
-
+            self.winner = 'farmer'
     # def update_num_wins_scores(self):
     #     for pos, utility in self.player_utility_dict.items():
     #         base_score = 2 

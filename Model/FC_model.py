@@ -11,7 +11,7 @@ class LandlordLstmModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.lstm = nn.LSTM(138, 128, batch_first=True)
-        self.dense1 = nn.Linear(260 + 128, 512)
+        self.dense1 = nn.Linear(260 + 128, 512) #388 * 512
         self.dense2 = nn.Linear(512, 512)
         self.dense3 = nn.Linear(512, 512)
         self.dense4 = nn.Linear(512, 512)
@@ -49,7 +49,7 @@ class FarmerLstmModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.lstm = nn.LSTM(138, 128, batch_first=True)
-        self.dense1 = nn.Linear(309 + 128, 512)
+        self.dense1 = nn.Linear(309 + 128, 512) #437 * 512
         self.dense2 = nn.Linear(512, 512)
         self.dense3 = nn.Linear(512, 512)
         self.dense4 = nn.Linear(512, 512)

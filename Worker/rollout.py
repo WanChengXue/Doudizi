@@ -28,7 +28,7 @@ class sample_generator:
         self.uuid = str(uuid.uuid4())
         self.policy_config = self.config_dict['policy_config']
         self.eval_mode = self.config_dict['policy_config'].get('eval_mode', False)
-        self.agent_name_list = self.config_dict['env']['agent_name_list']
+        self.agent_name_list = self.config_dict['env']['trained_agent_name_list']
         self.agent_nums = len(self.agent_name_list)
         self.context = zmq.Context()
         self.statistic = StatisticsUtils()
@@ -41,6 +41,7 @@ class sample_generator:
             self.transmit_interval = self.policy_config['woker_transmit_interval']
             # -------   如果说训练类型是RL，就需要不断使用policy fetcher获取最新的模型 --------
             self.update_policy = self.policy_config['training_type'] != 'supervised_learning'
+            self.buildin_ai = self.policy_config['buildin_ai']
             self.env = Environment()
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
         # self.agent.reset()
@@ -67,24 +68,6 @@ class sample_generator:
         else:
             pass
         return state_dict
-
-    def _generate_action(self, action_dict):
-        raw_action_dict = dict()
-        if self.agent_nums == 1:
-            if isinstance(action_dict[self.agent_name_list[0]], dict):
-                raw_action_dict[self.agent_name_list[0]] = action_dict[self.agent_name_list[0]]['raw_action']
-                env_action = action_dict[self.agent_name_list[0]]['clip_action']
-            else:
-                raw_action_dict = deepcopy(action_dict)
-                env_action = action_dict[self.agent_name_list[0]]
-
-            if self.eval_mode:
-                return env_action
-            else:      
-                return raw_action_dict, env_action
-        else:
-            pass
-            return action_dict
 
     def _revise_episodic_dict(self, episodic_dict, n_step_reward_list, done, next_agent_obs, next_centralized_state=None):
         discount_ratio = self.policy_config.get('gamma', 1)
@@ -135,7 +118,10 @@ class sample_generator:
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
         self.logger.info('------------- 采样sampler {} 开始启动, 样本用来传递给MARL算法 --------------'.format(self.uuid[:6]))
         start_env_time = time.time()
+        self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.buildin_ai)
         current_centralized_state = self.env.reset()
+        # --------- 设置内置AI，和需要被训练的智能体 ------
+        
         self.logger.info("-------------------- env reset ------------------")
         reward_list = []
         n_step = self.policy_config.get('n_step',1)
@@ -161,8 +147,11 @@ class sample_generator:
                 action_dict, log_prob_dict = self.agent.compute(current_agent_obs)
             else:
                 action_dict = self.agent.compute(current_agent_obs)
-            raw_action, action = self._generate_action(action_dict)
-            next_centralized_state, instant_reward, done, info = self.env.step(action)
+            action = action_dict[self.agent_name_list[0]]['action']
+            mask = action_dict[self.agent_name_list[0]]['mask']
+            next_centralized_state, instant_reward, done = self.env.step(action, self.logger)
+            if done:
+                next_centralized_state = current_centralized_state
             next_agent_obs = self._generate_obs(next_centralized_state)
             step += 1
             if self.multiagent_scenario:
@@ -183,16 +172,15 @@ class sample_generator:
                 for agent_name in self.agent_name_list:
                     episodic_dict[agent_name] = dict()
                     episodic_dict[agent_name]['current_agent_obs'] = deepcopy(current_agent_obs[agent_name])
-                    episodic_dict[agent_name]['actions'] = deepcopy(raw_action[agent_name])
+                    episodic_dict[agent_name]['actions'] = deepcopy(mask)
                     n_step_reward_list[agent_name].append(instant_reward)
+                    episodic_dict[agent_name]['next_agent_obs'] = deepcopy(next_agent_obs[agent_name])
                     if self.policy_based_RL:
                         episodic_dict[agent_name]['old_obs_value'] = obs_value_dict[agent_name]
                         episodic_dict[agent_name]['old_log_prob'] = log_prob_dict[agent_name]
                 n_step_state_queue.put(episodic_dict)
                 if n_step_state_queue.full() or done:
                     self._app_episodic_dict(n_step_state_queue, data_dict, n_step_reward_list, done, next_agent_obs)
-            # --------- 状态更新  ---------
-            current_centralized_state = next_centralized_state
             reward_list.append(instant_reward)
             if done:
                 # -------------- 需要计算一下bootstrap value -------------
@@ -208,7 +196,8 @@ class sample_generator:
                 if self.policy_config.get('ou_enabled', False):
                     self.agent._construct_ou_noise_explorator()
                 break
-
+            # --------- 状态更新  ---------
+            current_centralized_state = next_centralized_state
             # if step % self.transmit_interval == 0:
             #     self.logger.info("----------- worker端口发送数据 ---------")
             #     self.send_data(data_dict)

@@ -3,14 +3,14 @@ env:
   # 并行化环境的数目
   parallel_env: 100
   agent_name_list: ['landlord', 'farmer']
-
+  trained_agent_name_list: ['landlord']
 policy_name: 'DQN_exp'
 training_mode: Train
 # learning rate 为0的时间,用于优化器的初始化
 warmup_time: 0
 # ip of log server, config_server
-main_server_ip: '10.19.93.9'
-# 10.19.93.9
+main_server_ip: '10.1.48.115'
+# 10.1.48.115
 # 定义日志文件的文件夹
 log_dir: "Exp/Log"
 # 定义日志服务器的端口
@@ -38,7 +38,7 @@ load_data_from_model_pool: False
 policy_config:
   # ---- 主机索引 -----------
   main_machine_index: 0
-  machine_list: ['10.19.93.9']
+  machine_list: ['10.1.48.115']
   # 定义一个设备对应与多少个数据server
   server_number_per_device: 2
   # 定义一个机器有多少个设备
@@ -56,7 +56,7 @@ policy_config:
   using_target_network: True
   # Pytorch DDP相关
   ddp_port: 50001
-  batch_size: &batch_size 1024
+  batch_size: &batch_size 20
   plasma_server_location: Plasma_server/plasma
   # ------- 这两个参数在训练RL的时候会使用到，如果都是False，说明actor和critic在一起 --------
   centralized_critic: &centralized_critic False
@@ -84,7 +84,7 @@ policy_config:
   replay_buffer_config:
     buffer_name: prioritized_replay_buffer
     # prioritized_replay_buffer
-    capacity: 20000
+    capacity: 200
     batch_size: *batch_size
     # ----- 定义alpha和beta两个超参数 -------
     alpha: 0.6
@@ -103,6 +103,7 @@ policy_config:
     # -------- soft-update parameter ----
     tau: 1e-3
   # ------- 智能体相关的参数 ----------
+  buildin_ai: 'farmer'
   agent:
     # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
     landlord:
