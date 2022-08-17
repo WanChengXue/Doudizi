@@ -42,9 +42,9 @@ class sample_generator:
             # -------   如果说训练类型是RL，就需要不断使用policy fetcher获取最新的模型 --------
             self.update_policy = self.policy_config['training_type'] != 'supervised_learning'
             self.buildin_ai = self.policy_config['buildin_ai']
-            self.env = Environment()
+            
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
-        # self.agent.reset()
+        self.agent.reset()
         self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
         self.policy_based_RL = self.config_dict['policy_config'].get('policy_based_RL', False)
         self.logger.info("---------------- 完成sampler的构建 ------------")
@@ -118,6 +118,7 @@ class sample_generator:
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
         self.logger.info('------------- 采样sampler {} 开始启动, 样本用来传递给MARL算法 --------------'.format(self.uuid[:6]))
         start_env_time = time.time()
+        self.env = Environment()
         self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.buildin_ai)
         current_centralized_state = self.env.reset()
         # --------- 设置内置AI，和需要被训练的智能体 ------

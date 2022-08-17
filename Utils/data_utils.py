@@ -229,8 +229,11 @@ def convert_list_to_dict(obs_list):
     if isinstance(instance_sample, dict):
         sub_obs = dict()
         for key in instance_sample:
-            # -------- 将这个子字典中的所有key获取到 -------
-            sub_obs[key] = convert_list_to_dict([single_sample[key] for single_sample in obs_list])
+            if key == 'actions':
+                sub_obs[key] = np.hstack(convert_list_to_dict([single_sample[key] for single_sample in obs_list]))
+            else:
+                # -------- 将这个子字典中的所有key获取到 -------
+                sub_obs[key] = convert_list_to_dict([single_sample[key] for single_sample in obs_list])
 
     elif isinstance(instance_sample, (list, tuple)):
         # --------- 如果是一个由list，或者是tuple构成的列表，就合并 --------
@@ -256,7 +259,10 @@ def convert_list_to_dict(obs_list):
                 return merge_dict
     else:
         if type(obs_list[0]) == np.ndarray:
-            sub_obs = np.stack(obs_list, 0)
+            try:
+                sub_obs = np.stack(obs_list, 0)
+            except:
+                sub_obs = np.vstack(obs_list)
         else:
             sub_obs = np.array(obs_list)
         # --- 如果zip之后得到的是一个向量，就增加一个维度 ----------

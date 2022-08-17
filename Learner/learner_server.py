@@ -318,7 +318,8 @@ class learner_server(base_server):
     def run(self):
         self.logger.info("------------------ learner: {} 开始运行 ----------------".format(self.global_rank))
         while True:
-            self.training_and_publish_model()
+            pass
+            # self.training_and_publish_model()
             # start_time = time.time()
             # self.test_training()
             # print(time.time() - start_time)

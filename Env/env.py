@@ -80,11 +80,16 @@ class Env:
                             'three_landlord_cards': dipai,
                             'feipai': feipai
                         }
+        assert len(card_play_data['landlord']) == 20
+        assert len(card_play_data['farmer']) == 17
         for key in card_play_data:
             card_play_data[key].sort()
 
         # Initialize the cards
-        self._env.card_play_init(card_play_data)
+        try:
+            self._env.card_play_init(card_play_data)
+        except :
+            print(card_play_data)
         self.infoset = self._game_infoset
         return get_obs(self.infoset)
 

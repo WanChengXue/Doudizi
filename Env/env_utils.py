@@ -2,14 +2,14 @@
 Author: error: git config user.name && git config user.email & please set dead value or install git
 Date: 2022-08-16 20:05:39
 LastEditors: error: git config user.name && git config user.email & please set dead value or install git
-LastEditTime: 2022-08-16 22:09:28
+LastEditTime: 2022-08-17 22:21:41
 FilePath: /Doudizi/Env/env_utils.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
 import numpy as np
 from Utils.data_utils import convert_data_format_to_torch_interference
 from Env.env import Env
-
+import copy
 def _format_observation(obs):
     position = obs['position']
     # if not device == "cpu":
@@ -41,18 +41,32 @@ class Environment:
         initial_obs, x_no_action, z, init_position = _format_observation(self.env.reset())
         # self.episode_return = torch.zeros(1, 1)
         # initial_done = torch.ones(1, 1, dtype=torch.bool)
-        assert init_position != self.buildin_ai
+        assert init_position == 'landlord'
         self.legal_actions = initial_obs['legal_actions']
+        self.record = dict()
+        self.record['landlord'] = dict()
+        self.record['farmer'] = dict()
+        self.record['landlord']['hand'] = []
+        self.record['landlord']['action'] = []
+        self.record['farmer']['hand'] = []
+        self.record['farmer']['action'] = []
+        self.record['landlord']['hand'].append(copy.deepcopy(self.env._env.info_sets['landlord'].player_hand_cards))
+
         return {
             'x': initial_obs['x_batch'],
             'z': initial_obs['z_batch']
         }
+        
         # return initial_position, initial_obs, dict(
         #     done=initial_done,
         #     episode_return=self.episode_return,
         #     obs_x_no_action=x_no_action,
         #     obs_z=z,
         #     )
+    @property
+    def get_legal_action_length(self):
+        # ------ 返回合法动作的数量 ------
+        return len(self.legal_actions)
         
     def set_buildin_ai(self, agent, trained_ai):
         self.buildin_ai = agent # 这个表示的是传入的內置AI
@@ -61,18 +75,23 @@ class Environment:
     def step(self, action, logger):
         # ---- 可以训练的AI传入的动作，然后环境step之后获得内置AI需要的状态 -----
         # -------- 传入的动作是一个数字token，实际的执行动作需要从legal_acitons中获取 ------
+        self.record['landlord']['action'].append(self.legal_actions[action])
         _op_obs, _reward, _done, _ = self.env.step(self.legal_actions[action])
-
+        # print("----- 地主出牌 {}---------".format(self.legal_actions[action]))
+        # print('--- 地主手牌为 {} -----'.format(self.env._env.info_sets['landlord'].player_hand_cards))
+        self.record['landlord']['hand'].append(copy.deepcopy(self.env._env.info_sets['landlord'].player_hand_cards))
+        #  step之后，返回得到的_op_obs应该是内置AI(farmer)的状态了 
         # self.episode_return += reward
         # episode_return = self.episode_return 
 
         # if done:
         #     obs = self.env.reset()
         #     self.episode_return = torch.zeros(1, 1)
-
         
+        # ---- 如果landlord执行完成了动作后没有结束游戏，则轮到farmer开始动作 --------
         if not _done:
             _op_obs, x_no_action, z, op_opsition = _format_observation(_op_obs)
+            assert op_opsition == self.trained_ai
             self.legal_actions = _op_obs['legal_actions']
             op_obs = {
                 'x': _op_obs['x_batch'],
@@ -80,29 +99,38 @@ class Environment:
             }
             # reward = torch.tensor(reward).view(1, 1)
             # done = torch.tensor(done).view(1, 1)
-            # ---- 如果游戏没有结束，则调用buildin ai ---
-            if op_opsition == self.buildin_ai:
-                try:
-                    
-                    buildin_ai_action = self.buildin_ai.compute_action_eval_mode(convert_data_format_to_torch_interference(op_obs))
-                except :
-                    logger.info("---- 内置AI报错，输入的数据为 {} -------".foramt(op_obs))
-                next_obs, reward, done, _ = self.env.step(self.legal_actions[buildin_ai_action])
-                if not done:
-                    next_obs, x_no_action, z, op_position = _format_observation(next_obs)
-                    assert op_position != self.buildin_ai
-                    self.legal_actions = next_obs['legal_actions']
-                    next_obs = {
-                        'x': next_obs['x_batch'],
-                        'z': next_obs['z_batch']
-                    }
-                else:
-                    next_obs = None
+            self.record['farmer']['hand'].append(copy.deepcopy(self.env._env.info_sets['farmer'].player_hand_cards))
+            # print('------- 农民手牌 {} ------------'.format(self.env._env.info_sets['farmer'].player_hand_cards))
+            try:
+                
+                buildin_ai_action = self.buildin_ai.compute_action_eval_mode(convert_data_format_to_torch_interference(op_obs))
+                self.record['farmer']['hand'].append(self.legal_actions[buildin_ai_action])
+                # print('------- 农民出牌 {}-----------'.format(self.legal_actions[buildin_ai_action]))
+            except :
+                logger.info("---- 内置AI报错，输入的数据为 {} -------".format(_op_obs))
+                logger.info("---- 对局历史 {}-------".format(self.record))
+                
+            next_obs, after_buildin_reward, after_buildin_done, _ = self.env.step(self.legal_actions[buildin_ai_action])
+            # ------- 如果对手执行完成了动作后，游戏没有结束，那么轮到landlord了 -----
+            if not after_buildin_done:
+                _next_obs, x_no_action, z, human_position = _format_observation(next_obs)
+                assert human_position != self.trained_ai
+                self.legal_actions = _next_obs['legal_actions']
+                next_obs = {
+                    'x': _next_obs['x_batch'],
+                    'z': _next_obs['z_batch']
+                }
+                
+            # -- 如果说对手执行完成了动作后，游戏结束，则landlord的next obs变成None
             else:
-                # ------- 如果不是内置ai动作 ------
-                next_obs = op_obs
-                done = _done
-                reward = _reward 
+                next_obs = None
+            reward = after_buildin_reward
+            done = after_buildin_done
+            # else:
+            #     # ------- 如果不是内置ai动作 ------
+            #     next_obs = op_obs
+            #     done = _done
+            #     reward = _reward 
         else:
             # ---- 当前玩家执行完成了动作之后，就直接结束了 ---
             next_obs = None
@@ -110,12 +138,7 @@ class Environment:
             reward = _reward 
     
         return next_obs, reward[self.trained_ai], done
-        # return position, obs, dict(
-        #     done=done,
-        #     episode_return=episode_return,
-        #     obs_x_no_action=x_no_action,
-        #     obs_z=z,
-        #     )
+
 
     def close(self):
         self.env.close()

@@ -63,8 +63,10 @@ class GameEnv(object):
         # ------ 初始化三个人的手牌，并且放入到infoset中 ----
         self.info_sets['landlord'].player_hand_cards = \
             card_play_data['landlord']
+        assert len(self.info_sets['landlord'].player_hand_cards) == 20
         self.info_sets['farmer'].player_hand_cards = \
             card_play_data['farmer']
+        assert len(self.info_sets['farmer'].player_hand_cards) == 17
         self.three_landlord_cards = card_play_data['three_landlord_cards']
         self.feipai = card_play_data['feipai']
         self.get_acting_player_position()
@@ -73,7 +75,7 @@ class GameEnv(object):
 
     def game_done(self):
         if len(self.info_sets['landlord'].player_hand_cards) == 0 or \
-                len(self.info_sets['farmer'].player_hand_cards) == self.rangpaishu:
+                len(self.info_sets['farmer'].player_hand_cards) <= self.rangpaishu:
             # if one of the three players discards his hand,
             # then game is over.
             self.compute_player_utility() # 计算一下对局双方的效用
