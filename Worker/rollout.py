@@ -121,7 +121,7 @@ class sample_generator:
         start_env_time = time.time()
         self.env = Environment()
         self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.agent_name_list[0])
-        current_centralized_state = self.env.reset()
+        current_centralized_state = self.env.reset(visualize_process=True)
         # --------- 设置内置AI，和需要被训练的智能体 ------
         
         self.logger.info("-------------------- env reset ------------------")
@@ -151,7 +151,7 @@ class sample_generator:
                 action_dict = self.agent.compute(current_agent_obs)
             action = action_dict[self.agent_name_list[0]]['action']
             mask = action_dict[self.agent_name_list[0]]['mask']
-            next_centralized_state, instant_reward, done = self.env.step(action, self.logger)
+            next_centralized_state, instant_reward, done = self.env.step(action)
             if done:
                 next_centralized_state = current_centralized_state
             next_agent_obs = self._generate_obs(next_centralized_state)

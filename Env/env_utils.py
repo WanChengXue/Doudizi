@@ -2,7 +2,7 @@
 Author: error: git config user.name && git config user.email & please set dead value or install git
 Date: 2022-08-16 20:05:39
 LastEditors: error: git config user.name && git config user.email & please set dead value or install git
-LastEditTime: 2022-08-18 21:22:23
+LastEditTime: 2022-08-18 21:37:10
 FilePath: /Doudizi/Env/env_utils.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -37,10 +37,9 @@ class Environment:
         self.episode_return = None
         
 
-    def reset(self):
+    def reset(self, visualize_process = False):
         initial_obs, x_no_action, z, init_position = _format_observation(self.env.reset())
-        # self.episode_return = torch.zeros(1, 1)
-        # initial_done = torch.ones(1, 1, dtype=torch.bool)
+        self.visualize_process = visualize_process
         assert init_position == 'landlord'
         self.landlord_legal_actions = initial_obs['legal_actions']
         self.record = dict()
@@ -72,14 +71,16 @@ class Environment:
         self.buildin_ai = agent # 这个表示的是传入的內置AI
         self.trained_ai = trained_ai # 这个表示需要进行训练的AI
         
-    def step(self, action, logger):
+    def step(self, action):
         # ---- 可以训练的AI传入的动作，然后环境step之后获得内置AI需要的状态 -----
         # -------- 传入的动作是一个数字token，实际的执行动作需要从legal_acitons中获取 ------
+        if self.visualize_process:
+            print('-------- 地主手牌为 {} -----'.format(self.env._env.info_sets['landlord'].player_hand_cards))
+            print("-------- 地主出牌 {}---------".format(self.landlord_legal_actions[action]))
         self.record['landlord']['action'].append(self.landlord_legal_actions[action])
         _op_obs, _reward, _done, _ = self.env.step(self.landlord_legal_actions[action])
-        # print("----- 地主出牌 {}---------".format(self.legal_actions[action]))
-        # print('--- 地主手牌为 {} -----'.format(self.env._env.info_sets['landlord'].player_hand_cards))
         self.record['landlord']['hand'].append(copy.deepcopy(self.env._env.info_sets['landlord'].player_hand_cards))
+        
         #  step之后，返回得到的_op_obs应该是内置AI(farmer)的状态了 
         # self.episode_return += reward
         # episode_return = self.episode_return 
@@ -100,11 +101,12 @@ class Environment:
             # reward = torch.tensor(reward).view(1, 1)
             # done = torch.tensor(done).view(1, 1)
             self.record['farmer']['hand'].append(copy.deepcopy(self.env._env.info_sets['farmer'].player_hand_cards))
-            # print('------- 农民手牌 {} ------------'.format(self.env._env.info_sets['farmer'].player_hand_cards))
             buildin_ai_action = self.buildin_ai.compute_action_eval_mode(convert_data_format_to_torch_interference(op_obs))
             self.record['farmer']['action'].append(self.farmer_legal_actions[buildin_ai_action])
-            # logger.info("---- 内置AI报错，输入的数据为 {} -------".format(_op_obs))
-            # logger.info("---- 对局历史 {}-------".format(self.record))
+            if self.visualize_process:
+                print('======== 农民手牌 {} =========='.format(self.env._env.info_sets['farmer'].player_hand_cards))
+                print('======== 农民出牌 {} =========='.format(self.farmer_legal_actions[buildin_ai_action]))
+            
                 
             next_obs, after_buildin_reward, after_buildin_done, _ = self.env.step(self.farmer_legal_actions[buildin_ai_action])
             # ------- 如果对手执行完成了动作后，游戏没有结束，那么轮到landlord了 -----
