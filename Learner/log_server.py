@@ -141,7 +141,7 @@ class log_server(base_server):
     def summary_definition(self):
         # --------------- 预先添加一些tag进去 --------------
         # =============== 效果类型的指标，表示采样完毕后，整条轨迹的累计奖励值 ============
-        self.summary_logger.add_tag('result/accumulated_reward/{}'.format(self.policy_name), 10, 'mean')
+        self.summary_logger.add_tag('result/accumulated_reward/{}'.format(self.policy_name), 1, 'mean')
         # =============== 采样端的指标，请求模型的时间，更新模型的时间，从configserver下载模型的时间，完整的采样一条轨迹需要的时间 ===============
         self.summary_logger.add_tag('sampler/episode_time/{}'.format(self.policy_name), 10, 'mean')
         self.summary_logger.add_tag('sampler/model_request_time/{}'.format(self.policy_name), 10, 'mean')

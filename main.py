@@ -2,7 +2,7 @@
 Author: error: git config user.name && git config user.email & please set dead value or install git
 Date: 2022-08-16 20:05:39
 LastEditors: error: git config user.name && git config user.email & please set dead value or install git
-LastEditTime: 2022-08-17 21:47:22
+LastEditTime: 2022-08-18 20:55:10
 FilePath: /Doudizi/main.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -19,7 +19,7 @@ def start_learner_data_server(config_path, world_size, machine_index, device_num
         global_rank = machine_index * device_number_per_machine + local_rank
         for data_server_index in range(server_number_per_device):
             data_server_command = "nohup python -m Learner.data_server --rank {} --config_path {} --data_server_local_rank {} >> {} 2>&1 &".format(global_rank, config_path, data_server_index, data_log_path)
-            # os.system(data_server_command)
+            os.system(data_server_command)
         # -------- 启动lerner server -----------
         learner_server_command = "nohup python -m Learner.learner_server --rank {} --world_size {} --config_path {} >> {}  2>&1 &".format(global_rank, world_size, config_path, learner_log_path)
         os.system(learner_server_command)

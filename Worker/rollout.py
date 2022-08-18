@@ -81,6 +81,7 @@ class sample_generator:
                 n_step_reward *= discount_ratio
                 n_step_reward += instant_reward
         episodic_dict['instant_reward'] = n_step_reward
+        episodic_dict['next_state_action_length'] = episodic_dict['next_agent_obs']['x'].shape[0]
         n_step_reward_list.pop(0)
 
     def _app_episodic_dict(self, n_step_state_queue, data_dict, n_step_reward_list, done, next_agent_obs, next_centralized_state=None):
@@ -119,7 +120,7 @@ class sample_generator:
         self.logger.info('------------- 采样sampler {} 开始启动, 样本用来传递给MARL算法 --------------'.format(self.uuid[:6]))
         start_env_time = time.time()
         self.env = Environment()
-        self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.buildin_ai)
+        self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.agent_name_list[0])
         current_centralized_state = self.env.reset()
         # --------- 设置内置AI，和需要被训练的智能体 ------
         
@@ -193,6 +194,8 @@ class sample_generator:
                 else:
                     bootstrap_value = None
                 self.send_data(data_dict, bootstrap_value)
+                if len(data_dict['landlord']) <= 5:
+                    self.logger.info("-------- 本次的对局历史为{} ----------".format(self.env.record))
                 self.agent.step()
                 if self.policy_config.get('ou_enabled', False):
                     self.agent._construct_ou_noise_explorator()

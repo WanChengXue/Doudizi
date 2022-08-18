@@ -231,6 +231,8 @@ def convert_list_to_dict(obs_list):
         for key in instance_sample:
             if key == 'actions':
                 sub_obs[key] = np.hstack(convert_list_to_dict([single_sample[key] for single_sample in obs_list]))
+            elif key =='next_state_action_length':
+                sub_obs[key] = np.array([single_sample[key] for single_sample in obs_list])
             else:
                 # -------- 将这个子字典中的所有key获取到 -------
                 sub_obs[key] = convert_list_to_dict([single_sample[key] for single_sample in obs_list])

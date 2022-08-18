@@ -239,77 +239,36 @@ class data_receiver_server(base_server):
             else:
                 return True
 
-    def _sampling_data_from_memory(self):
-        if self.global_rank == 0:
-            self.logger.info("============== 开始采样 ===============")
-        start_time = time.time()
-        random_sample_file_batch = random.sample(self.data_path_list, self.sample_file_number)
-        composed_data_list = []
-        # ------------- 组装出原始数据的路径和保存的权重的路径 -----------
-        for file_name in random_sample_file_batch:
-            source_data_path = os.path.join(self.data_folder, file_name)
-            weight_data_path = os.path.join(self.weight_folder, file_name)
-            load_source_data_file = open(source_data_path, 'rb')
-            load_weight_data_file = open(weight_data_path, 'rb')
-            # --------- loads和load的区别在于，load是从文件中加载数据，loads是从bytes 对象中读取 --------
-            source_data = pickle.loads(frame.decompress(pickle.load(load_source_data_file)))
-            weight_data = pickle.load(load_weight_data_file)
-            # --------- 关闭文件 ---------
-            load_source_data_file.close()
-            load_weight_data_file.close()
-            composed_data_list.append((source_data, weight_data))
-        # ------------- 数据放入到plasma server中 --------------
-        try:
-            sample_data_dict = convert_list_to_dict(composed_data_list)
-        except:
-            self.logger.info(random_sample_file_batch)
-        self.plasma_client.put(sample_data_dict, self.plasma_data_id, memcopy_threads=12)
-        self.logger.info("================= 将数据从本地转移到plasma server中 =============")
-        del composed_data_list, sample_data_dict 
-        self.sample_data_time_list.append(time.time()-start_time)
-        # ------------------ 朝着logserver发送日志，日志设置为每一分钟发送一次 --------------------
-        if time.time() > self.next_send_log_time:
-            self.next_send_log_time += 60
-            self.send_log({"sampler/transfer_data_from_buffer_to_plasma_server_per_min/{}".format(self.policy_name): sum(self.sample_data_time_list)})
-            self.sample_data_time_list = []
 
 
     def run(self):
         # ----------- 函数一旦运行起来，就不断的监听套接字 ---------------
         self.logger.info("-------------- 数据服务开始启动, 对应的plasma_id是:{} -------------".format(self.plasma_data_id))
         while True:
-            if self.read_data_from_local_machine:
-                # --------- 如果说从本地读取训练数据，需要sample一个batch的pickle --------
-                if time.time() > self.next_sample_time and not self.plasma_client.contains(self.plasma_data_id):
-                    current_time = time.time()
-                    self.next_sample_time = current_time + self.config_dict['data_server_sampling_interval']
-                    self._sampling_data_from_memory()
-
-            else:
-                sockets = dict(self.poller.poll(timeout=100))
-                self._recv_data(sockets)
-                # ------ 如果说这个这个plasma id不在plasma客户端里面，并且这个replaybuffer要是满的，还要当前时间超过了采样间隔才放进去，默认采样间隔为0 ---------
-                if self.full_buffer() and time.time()>self.next_sample_time and not self.plasma_client.contains(self.plasma_data_id):
-                    current_time = time.time()
-                    self.next_sample_time = current_time + self.config_dict['data_server_sampling_interval']
-                    self.sampling_data()
-                    self.sample_data_time_list.append(time.time() - current_time)
-                
-                # ------------------ 朝着logserver发送日志，日志设置为每一分钟发送一次 --------------------
-                if time.time() > self.next_send_log_time:
-                    self.next_send_log_time += 60
-                    # ---------- 这个地方将这个worker在一分钟内收到的数据量发送给logserver ----------------
-                    self.send_log({"data_server/data_server_recv_data_numbers_per_min/{}".format(self.policy_name): self.recv_data_number})
-                    # ---------- 这个地方将这一分钟内，耗费在socket上面的时间发送个logserver ----------------
-                    self.send_log({"data_server/socket_recv_time_per_min/{}".format(self.policy_name): sum(self.socket_recv_time_list)})
-                    # ----------- 这个地方将这一分钟内，解析数据时间，以及将数据转移到replaybuffer里面的时间发送给logserver -----------
-                    self.send_log({"data_server/parse_recv_data_time_per_min/{}".format(self.policy_name): sum(self.parse_recv_data_time_list)})
-                    self.send_log({"sampler/transfer_data_from_buffer_to_plasma_server_per_min/{}".format(self.policy_name): sum(self.sample_data_time_list)})
-                    # ---------- 重置这四个变量 -------------
-                    self.recv_data_number = 0
-                    self.socket_recv_time_list = []
-                    self.parse_recv_data_time_list = []
-                    self.sample_data_time_list = []
+            sockets = dict(self.poller.poll(timeout=100))
+            self._recv_data(sockets)
+            # ------ 如果说这个这个plasma id不在plasma客户端里面，并且这个replaybuffer要是满的，还要当前时间超过了采样间隔才放进去，默认采样间隔为0 ---------
+            if self.full_buffer() and time.time()>self.next_sample_time and not self.plasma_client.contains(self.plasma_data_id):
+                current_time = time.time()
+                self.next_sample_time = current_time + self.config_dict['data_server_sampling_interval']
+                self.sampling_data()
+                self.sample_data_time_list.append(time.time() - current_time)
+            
+            # ------------------ 朝着logserver发送日志，日志设置为每一分钟发送一次 --------------------
+            if time.time() > self.next_send_log_time:
+                self.next_send_log_time += 60
+                # ---------- 这个地方将这个worker在一分钟内收到的数据量发送给logserver ----------------
+                self.send_log({"data_server/data_server_recv_data_numbers_per_min/{}".format(self.policy_name): self.recv_data_number})
+                # ---------- 这个地方将这一分钟内，耗费在socket上面的时间发送个logserver ----------------
+                self.send_log({"data_server/socket_recv_time_per_min/{}".format(self.policy_name): sum(self.socket_recv_time_list)})
+                # ----------- 这个地方将这一分钟内，解析数据时间，以及将数据转移到replaybuffer里面的时间发送给logserver -----------
+                self.send_log({"data_server/parse_recv_data_time_per_min/{}".format(self.policy_name): sum(self.parse_recv_data_time_list)})
+                self.send_log({"sampler/transfer_data_from_buffer_to_plasma_server_per_min/{}".format(self.policy_name): sum(self.sample_data_time_list)})
+                # ---------- 重置这四个变量 -------------
+                self.recv_data_number = 0
+                self.socket_recv_time_list = []
+                self.parse_recv_data_time_list = []
+                self.sample_data_time_list = []
 
 if __name__=='__main__':
     import argparse

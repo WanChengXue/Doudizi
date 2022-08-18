@@ -21,12 +21,12 @@ model_cache_size: 20
 config_server_model_from_learner: 9112
 config_server_model_to_worker: 9001
 # 主模型更新时间间隔,这个变量主要是worker端使用，没隔20s调用一次fetcher从config server获取一次最新的模型 -------
-sampler_model_update_interval: 20
+sampler_model_update_interval: 3
 # ----------- configserver打开http的端口 -----------
 config_server_http_port: 9002
 # ========== learner related ==============
 # ----- 这个变量是learner端使用，表示发布新模型的时间间隔 -----
-model_update_intervel: 3
+model_update_intervel: 0
 # --------- 这个变量是dataserver是从buffer里面采一个batch的数据放入到plasma client里面的时间间隔 -----------------
 data_server_sampling_interval: 0
 # ------- 将worker端采样得到的数据保存到本地的文件夹 --------
@@ -40,7 +40,7 @@ policy_config:
   main_machine_index: 0
   machine_list: ['10.1.48.115']
   # 定义一个设备对应与多少个数据server
-  server_number_per_device: 2
+  server_number_per_device: 1
   # 定义一个机器有多少个设备
   device_number_per_machine: 1
   # -- 这个参数表示的是数据服务开始端口 ----------
@@ -56,7 +56,7 @@ policy_config:
   using_target_network: True
   # Pytorch DDP相关
   ddp_port: 50001
-  batch_size: &batch_size 20
+  batch_size: &batch_size 256
   plasma_server_location: Plasma_server/plasma
   # ------- 这两个参数在训练RL的时候会使用到，如果都是False，说明actor和critic在一起 --------
   centralized_critic: &centralized_critic False
@@ -80,11 +80,11 @@ policy_config:
   # ------ 这个地方采用的cosineannealingwarmrestarts()学习率调整 ------------
   T_zero: 5
   # -------- 定义replay buffer相关的参数 -------
-  priority_replay_buffer: True
+  priority_replay_buffer: False
   replay_buffer_config:
-    buffer_name: prioritized_replay_buffer
+    buffer_name: data_buffer
     # prioritized_replay_buffer
-    capacity: 200
+    capacity: 5000
     batch_size: *batch_size
     # ----- 定义alpha和beta两个超参数 -------
     alpha: 0.6

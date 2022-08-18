@@ -227,8 +227,8 @@ class learner_server(base_server):
             self.recursive_send(info, None, self.policy_name)
         else:
             self.logger.info("----------- 模型处于预热阶段，不更新参数 ----------")
-        if self.total_training_steps % 400 == 0:
-            self._test_model()
+        # if self.total_training_steps % 400 == 0:
+        #     self._test_model()
 
     def _test_model(self):
         import gym
@@ -318,12 +318,7 @@ class learner_server(base_server):
     def run(self):
         self.logger.info("------------------ learner: {} 开始运行 ----------------".format(self.global_rank))
         while True:
-            pass
-            # self.training_and_publish_model()
-            # start_time = time.time()
-            # self.test_training()
-            # print(time.time() - start_time)
-            # exit()
+            self.training_and_publish_model()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
