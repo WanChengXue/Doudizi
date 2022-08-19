@@ -2,7 +2,7 @@
 Author: error: git config user.name && git config user.email & please set dead value or install git
 Date: 2022-08-15 20:59:32
 LastEditors: error: git config user.name && git config user.email & please set dead value or install git
-LastEditTime: 2022-08-18 20:52:41
+LastEditTime: 2022-08-19 19:15:24
 FilePath: /RLFramework/Algorithm/DQN.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -38,21 +38,23 @@ class DQNTrainer():
 
     def step(self, training_data, PRB = None):
         current_state = training_data[self.agent_name]['current_agent_obs']
-        next_state = training_data[self.agent_name]['next_agent_obs']
+        # next_state = training_data[self.agent_name]['next_agent_obs']
         instant_reward = training_data[self.agent_name]['instant_reward']
-        actions = training_data[self.agent_name]['actions'].bool()
-        done = training_data[self.agent_name]['done']
-        next_state_action_length = training_data[self.agent_name]['next_state_action_length'].long()
-        next_q_list = []
-        start_value = 0
+        # actions = training_data[self.agent_name]['actions'].bool()
+        # done = training_data[self.agent_name]['done']
+        # next_state_action_length = training_data[self.agent_name]['next_state_action_length'].long()
+        # next_q_list = []
+        # start_value = 0
         current_state_Q_value = self.model(**current_state, return_value=True)
-        with torch.no_grad():
-            next_state_Q_value = self.target_model(**next_state, return_value=True)
-            for batch_length in next_state_action_length:
-                next_q_list.append(torch.max(next_state_Q_value[start_value: start_value+batch_length]))
-                start_value += batch_length
-            effective_q_value = torch.stack(next_q_list, 0).unsqueeze(-1)
-        mse_loss = self.critic_loss((instant_reward + effective_q_value * self.gamma ** self.n_step *(1-done)), current_state_Q_value[actions]) 
+        # with torch.no_grad():
+        #     next_state_Q_value = self.target_model(**next_state, return_value=True)
+        #     for batch_length in next_state_action_length:
+        #         next_q_list.append(torch.max(next_state_Q_value[start_value: start_value+batch_length]))
+        #         start_value += batch_length
+        #     effective_q_value = torch.stack(next_q_list, 0).unsqueeze(-1)
+        # target_value = instant_reward + effective_q_value * self.gamma ** self.n_step *(1-done)
+        target_value = instant_reward
+        mse_loss = self.critic_loss(target_value, current_state_Q_value) 
         info_dict = dict()
         info_dict['mse_loss'] = mse_loss.item()
         self.optimizer.zero_grad()

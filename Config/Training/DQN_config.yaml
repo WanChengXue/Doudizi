@@ -56,7 +56,7 @@ policy_config:
   using_target_network: True
   # Pytorch DDP相关
   ddp_port: 50001
-  batch_size: &batch_size 256
+  batch_size: &batch_size 512
   plasma_server_location: Plasma_server/plasma
   # ------- 这两个参数在训练RL的时候会使用到，如果都是False，说明actor和critic在一起 --------
   centralized_critic: &centralized_critic False
@@ -68,7 +68,7 @@ policy_config:
   # ---------- 定义最大采样长度 ----------
   max_trajectory_length: 1000
   # --------- 使用n step TD -----
-  n_step: &n_step 5
+  n_step: &n_step 1
   gamma: &gamma 0.99
   # ------ 设置模型的保存路径 ——----------
   # ======= 两个路径一个是最新的模型构成的模型池，另外一个是每训练若干次保存下来的模型 =====

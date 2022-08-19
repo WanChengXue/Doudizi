@@ -114,6 +114,15 @@ class sample_generator:
         self.rollout_one_episode_evaluate_by_agent()
         # --------- 这个地方使用传统算法跑一次 ----------
 
+    def select_data(self, data_dict, index):
+        selected_dict ={}
+        for key in data_dict:
+            selected_dict[key] = data_dict[key][index]
+        return selected_dict
+    
+    def _revised_all_reward(self, data_dict, sum_reward):
+        for sample_point in data_dict[self.agent_name_list[0]]:
+            sample_point['instant_reward'] = sum_reward
 
     def rollout_one_episode_multi_agent_scenario(self):
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
@@ -121,7 +130,7 @@ class sample_generator:
         start_env_time = time.time()
         self.env = Environment()
         self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.agent_name_list[0])
-        current_centralized_state = self.env.reset(visualize_process=True)
+        current_centralized_state = self.env.reset()
         # --------- 设置内置AI，和需要被训练的智能体 ------
         
         self.logger.info("-------------------- env reset ------------------")
@@ -150,7 +159,6 @@ class sample_generator:
             else:
                 action_dict = self.agent.compute(current_agent_obs)
             action = action_dict[self.agent_name_list[0]]['action']
-            mask = action_dict[self.agent_name_list[0]]['mask']
             next_centralized_state, instant_reward, done = self.env.step(action)
             if done:
                 next_centralized_state = current_centralized_state
@@ -173,10 +181,9 @@ class sample_generator:
                 episodic_dict = dict()
                 for agent_name in self.agent_name_list:
                     episodic_dict[agent_name] = dict()
-                    episodic_dict[agent_name]['current_agent_obs'] = deepcopy(current_agent_obs[agent_name])
-                    episodic_dict[agent_name]['actions'] = deepcopy(mask)
+                    episodic_dict[agent_name]['current_agent_obs'] = deepcopy(self.select_data(current_agent_obs[agent_name], action))
                     n_step_reward_list[agent_name].append(instant_reward)
-                    episodic_dict[agent_name]['next_agent_obs'] = deepcopy(next_agent_obs[agent_name])
+                    episodic_dict[agent_name]['next_agent_obs'] = deepcopy((next_agent_obs[agent_name]))
                     if self.policy_based_RL:
                         episodic_dict[agent_name]['old_obs_value'] = obs_value_dict[agent_name]
                         episodic_dict[agent_name]['old_log_prob'] = log_prob_dict[agent_name]
@@ -193,9 +200,8 @@ class sample_generator:
                         bootstrap_value = self.agent.compute_state_value(next_agent_obs)
                 else:
                     bootstrap_value = None
+                self._revised_all_reward(data_dict, sum(reward_list))
                 self.send_data(data_dict, bootstrap_value)
-                if len(data_dict['landlord']) <= 5:
-                    self.logger.info("-------- 本次的对局历史为{} ----------".format(self.env.record))
                 self.agent.step()
                 if self.policy_config.get('ou_enabled', False):
                     self.agent._construct_ou_noise_explorator()
