@@ -22,7 +22,7 @@ def start_learner_data_server(config_path, world_size, machine_index, device_num
             os.system(data_server_command)
         # -------- 启动lerner server -----------
         learner_server_command = "nohup python -m Learner.learner_server --rank {} --world_size {} --config_path {} >> {}  2>&1 &".format(global_rank, world_size, config_path, learner_log_path)
-        # os.system(learner_server_command)
+        os.system(learner_server_command)
 
 def main(args):
     config_dict = parse_config(args.config_path)

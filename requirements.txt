@@ -1,11 +1,11 @@
 gym 
 lz4 
 matplotlib 
-# numpy==1.21.5
+numpy
 pyarrow 
-# pybullet==3.2.4
-# PyYAML==6.0
+pybullet==3.2.4
+PyYAML==6.0
 pyzmq
 requests 
-# torch==1.10.1
+torch
 tqdm 

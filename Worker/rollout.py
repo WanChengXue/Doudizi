@@ -130,7 +130,7 @@ class sample_generator:
         start_env_time = time.time()
         self.env = Environment()
         self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.agent_name_list[0])
-        current_centralized_state = self.env.reset()
+        current_centralized_state = self.env.reset(visualize_process=False)
         # --------- 设置内置AI，和需要被训练的智能体 ------
         
         self.logger.info("-------------------- env reset ------------------")
@@ -224,6 +224,7 @@ class sample_generator:
         self.statistic.append('Worker/sample_time_per_episode/{}'.format(self.config_dict['policy_name']), (end_env_time-start_env_time)/3600)
         self.statistic.append('result/sum_instant_reward/{}'.format(self.config_dict['policy_name']), sum(reward_list))
         self.statistic.append('Worker/sample_step_per_episode/{}'.format(self.config_dict['policy_name']), step)
+        self.statistic.append('result/win/{}'.format(self.config_dict['policy_name']), 1 if instant_reward>=0.0 else -1)
         # self.statistic.append('Worker/sample_cycle_time_per_epsode/{}'.format(self.config_dict['policy_name']), sum(cycle_list)/3600.0)
         self.statistic.append('result/sum_instant_reward/{}'.format(self.config_dict['policy_name']), sum(reward_list))
         result_info = {'worker_id': self.uuid}
