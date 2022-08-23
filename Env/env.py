@@ -37,6 +37,7 @@ class Env:
         self.jiaodizhu_turns = random.sample([1,2,3,4], 1)[0]
         self.jiaodizhu_beishu = self.jiaodizhu_dict[str(self.jiaodizhu_turns)]
         self._env.set_rangpaishu(self.jiaodizhu_turns)
+        self.rangpaishus = self.jiaodizhu_turns
 
     def dipai_beishu_stage(self, dipai):
         # --- 判断底牌倍数 -----
@@ -68,6 +69,8 @@ class Env:
         # -- 从剩下的牌中抽三张作为地主牌 ---
         dipai = random.sample(cards, 3)
         dipai.sort()
+        self.diapi = copy.deepcopy(dipai)
+        self.feipai = copy.deepcopy(feipai)
         for x in dipai:
             cards.remove(x)
         random.shuffle(cards)

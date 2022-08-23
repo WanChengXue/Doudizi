@@ -44,7 +44,7 @@ class sample_generator:
             self.buildin_ai = self.policy_config['buildin_ai']
             
         self.agent = Agent_manager(self.config_dict, self.context, self.statistic, self.uuid[:6], self.logger, port_num=port_num)
-        self.agent.reset()
+        # self.agent.reset()
         self.multiagent_scenario = self.config_dict['env'].get('multiagent_scenario', False)
         self.policy_based_RL = self.config_dict['policy_config'].get('policy_based_RL', False)
         self.logger.info("---------------- 完成sampler的构建 ------------")
@@ -123,6 +123,38 @@ class sample_generator:
     def _revised_all_reward(self, data_dict, sum_reward):
         for sample_point in data_dict[self.agent_name_list[0]]:
             sample_point['instant_reward'] = sum_reward
+            
+    def rollout_one_episode_evaluate_by_agent(self):
+        self.logger.info('-------- 开始eval 程序 -----------')
+        self.env = Environment()
+        self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.agent_name_list[0])
+        self.env.human_action = True
+        current_centralized_state = self.env.reset(visualize_process=False)
+        reward_list = []
+        if self.multiagent_scenario:
+            data_dict = []
+            n_step_reward_list = []
+        else:
+            data_dict = dict()
+            n_step_reward_list = dict()
+            for agent_name in self.agent_name_list:
+                data_dict[agent_name] = []
+                n_step_reward_list[agent_name] = []
+        step = 0
+        while True:
+            current_agent_obs = self._generate_obs(current_centralized_state)
+            if self.policy_based_RL:
+                action_dict, _ = self.agent.compute(current_agent_obs)
+            else:
+                action_dict = self.agent.compute(current_agent_obs)
+            action = action_dict[self.agent_name_list[0]]['action']
+            next_centralized_state, instant_reward, done = self.env.step(action)
+            step += 1
+            reward_list.append(instant_reward)
+            if done:
+                break
+            current_centralized_state = next_centralized_state
+
 
     def rollout_one_episode_multi_agent_scenario(self):
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
@@ -130,6 +162,7 @@ class sample_generator:
         start_env_time = time.time()
         self.env = Environment()
         self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.agent_name_list[0])
+        self.env.human_action = True
         current_centralized_state = self.env.reset(visualize_process=False)
         # --------- 设置内置AI，和需要被训练的智能体 ------
         
@@ -258,7 +291,7 @@ class sample_generator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default='Config/Training/DQN_config.yaml')
+    parser.add_argument("--config_path", type=str, default='Config/Testing/DQN_eval_config.yaml')
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config
     args = parser.parse_args()

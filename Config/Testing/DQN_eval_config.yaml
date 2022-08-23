@@ -5,7 +5,7 @@ env:
   agent_name_list: ['landlord', 'farmer']
   trained_agent_name_list: ['landlord']
 policy_name: 'DQN_exp'
-training_mode: Train
+# training_mode: eval
 # learning rate 为0的时间,用于优化器的初始化
 warmup_time: 0
 # ip of log server, config_server
@@ -37,6 +37,7 @@ data_save_start: False
 load_data_from_model_pool: False
 policy_config:
   # ---- 主机索引 -----------
+  eval_mode: True
   main_machine_index: 0
   machine_list: ['172.17.16.17']
   # 定义一个设备对应与多少个数据server
@@ -72,7 +73,7 @@ policy_config:
   gamma: &gamma 0.99
   # ------ 设置模型的保存路径 ——----------
   # ======= 两个路径一个是最新的模型构成的模型池，另外一个是每训练若干次保存下来的模型 =====
-  model_pool_path: "Exp/Model/model_pool/"
+  pretrained_model_path: "Exp/Model/model_pool/"
   saved_model_path: "Exp/Model/saved_model/"
   tensorboard_folder: "Tensorboard_log"
   # ----- 只有一个智能体，显然是参数共享和同质化都是True ---------

@@ -10,6 +10,7 @@ import numpy as np
 from Utils.data_utils import convert_data_format_to_torch_interference
 from Env.env import Env
 import copy
+from Env.game import EnvCard2RealCard,RealCard2EnvCard
 def _format_observation(obs):
     position = obs['position']
     # if not device == "cpu":
@@ -35,11 +36,19 @@ class Environment:
         """
         self.env = Env()
         self.episode_return = None
+        self.human_action = False
         
 
     def reset(self, visualize_process = False):
         initial_obs, x_no_action, z, init_position = _format_observation(self.env.reset())
         self.visualize_process = visualize_process
+        if self.human_action or self.visualize_process:
+            print('三张底牌为：{}'.format(self.convert_number_to_str(self.env.diapi)))
+            print('九张废牌为:{}'.format(self.convert_number_to_str(self.env.feipai)))
+            print('让牌数为:{}'.format(self.env.rangpaishus))
+            print('底牌倍数为:{}'.format(self.env.dipai_beishu))
+            print('叫地主倍数为:{}'.format(self.env.jiaodizhu_beishu))
+            
         assert init_position == 'landlord'
         self.landlord_legal_actions = initial_obs['legal_actions']
         self.record = dict()
@@ -71,12 +80,20 @@ class Environment:
         self.buildin_ai = agent # 这个表示的是传入的內置AI
         self.trained_ai = trained_ai # 这个表示需要进行训练的AI
         
+    def convert_number_to_str(self, card_list):
+        # 传入卡片列表，然后返回实际的牌
+        if len(card_list) != 0:
+            real_card_list = [EnvCard2RealCard[token] for token in card_list]
+            return ''.join(real_card_list)
+        else:
+            return 'pass'    
+        
     def step(self, action):
         # ---- 可以训练的AI传入的动作，然后环境step之后获得内置AI需要的状态 -----
         # -------- 传入的动作是一个数字token，实际的执行动作需要从legal_acitons中获取 ------
-        if self.visualize_process:
-            print('-------- 地主手牌为 {} -----'.format(self.env._env.info_sets['landlord'].player_hand_cards))
-            print("-------- 地主出牌 {}---------".format(self.landlord_legal_actions[action]))
+        if self.visualize_process or self.human_action:
+            print('-------- 地主手牌为 {} -----'.format(self.convert_number_to_str(self.env._env.info_sets['landlord'].player_hand_cards)))
+            print("-------- 地主出牌 {}---------".format(self.convert_number_to_str(self.landlord_legal_actions[action])))
         self.record['landlord']['action'].append(self.landlord_legal_actions[action])
         _op_obs, _reward, _done, _ = self.env.step(self.landlord_legal_actions[action])
         self.record['landlord']['hand'].append(copy.deepcopy(self.env._env.info_sets['landlord'].player_hand_cards))
@@ -92,7 +109,7 @@ class Environment:
         # ---- 如果landlord执行完成了动作后没有结束游戏，则轮到farmer开始动作 --------
         if not _done:
             _op_obs, x_no_action, z, op_opsition = _format_observation(_op_obs)
-            assert op_opsition != self.trained_ai
+            # assert op_opsition != self.trained_ai
             self.farmer_legal_actions = _op_obs['legal_actions']
             op_obs = {
                 'x': _op_obs['x_batch'],
@@ -101,14 +118,26 @@ class Environment:
             # reward = torch.tensor(reward).view(1, 1)
             # done = torch.tensor(done).view(1, 1)
             self.record['farmer']['hand'].append(copy.deepcopy(self.env._env.info_sets['farmer'].player_hand_cards))
-            buildin_ai_action = self.buildin_ai.compute_action_eval_mode(convert_data_format_to_torch_interference(op_obs))
-            self.record['farmer']['action'].append(self.farmer_legal_actions[buildin_ai_action])
-            if self.visualize_process:
-                print('======== 农民手牌 {} =========='.format(self.env._env.info_sets['farmer'].player_hand_cards))
-                print('======== 农民出牌 {} =========='.format(self.farmer_legal_actions[buildin_ai_action]))
-            
+            if self.human_action:
+                # ------ termimal传入一个列表
+                print('======== 农民手牌 {} =========='.format(self.convert_number_to_str(self.env._env.info_sets['farmer'].player_hand_cards)))
+                input_card = input(f"请输入你要出的牌，如果不出输入pass，此外用逗号分开多张牌：")
+                # 将这个字符串变成一个列表
+                if input_card == 'pass':
+                    input_action = []
+                else:
+                    input_action = [RealCard2EnvCard[_card] for _card in input_card.split(',')]
+                next_obs, after_buildin_reward, after_buildin_done, _ = self.env.step(input_action)
                 
-            next_obs, after_buildin_reward, after_buildin_done, _ = self.env.step(self.farmer_legal_actions[buildin_ai_action])
+            else:
+                buildin_ai_action = self.buildin_ai.compute_action_eval_mode(convert_data_format_to_torch_interference(op_obs))
+                self.record['farmer']['action'].append(self.farmer_legal_actions[buildin_ai_action])
+                if self.visualize_process:
+                    print('======== 农民手牌 {} =========='.format(self.env._env.info_sets['farmer'].player_hand_cards))
+                    print('======== 农民出牌 {} =========='.format(self.farmer_legal_actions[buildin_ai_action]))
+                
+                    
+                next_obs, after_buildin_reward, after_buildin_done, _ = self.env.step(self.farmer_legal_actions[buildin_ai_action])
             # ------- 如果对手执行完成了动作后，游戏没有结束，那么轮到landlord了 -----
             if not after_buildin_done:
                 _next_obs, x_no_action, z, human_position = _format_observation(next_obs)
