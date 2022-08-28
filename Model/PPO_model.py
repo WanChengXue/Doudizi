@@ -10,20 +10,21 @@ class Actor(nn.Module):
         # torch.manual_seed(self.seed)
         # torch.cuda.manual_seed(self.seed)
         # ---------- log_std_min, log_std_max分别表示变量方差的最小最大的log值 -------
-        self.log_std_min = config.get('log_std_min', -20)
-        self.log_std_max = config.get('log_std_max', 2)
-        self.state_size = config['state_dim']
-        self.action_size = config['action_dim']
-        self.default_sigma = config.get('default_sigma', True)
-        self.hidden_size = config.get('hidden_size', 256)
+        self.log_std_min = config.get("log_std_min", -20)
+        self.log_std_max = config.get("log_std_max", 2)
+        self.state_size = config["state_dim"]
+        self.action_size = config["action_dim"]
+        self.default_sigma = config.get("default_sigma", True)
+        self.hidden_size = config.get("hidden_size", 256)
         self.fc1 = nn.Linear(self.state_size, self.hidden_size)
-        self.fc2 = nn.Linear(self.hidden_size, 2* self.hidden_size)
-        self.mu = nn.Linear(2* self.hidden_size, self.action_size)
+        self.fc2 = nn.Linear(self.hidden_size, 2 * self.hidden_size)
+        self.mu = nn.Linear(2 * self.hidden_size, self.action_size)
         if self.default_sigma:
-            self.log_std = nn.Parameter(-0.5* torch.ones(1, self.action_size), requires_grad=False)    
+            self.log_std = nn.Parameter(
+                -0.5 * torch.ones(1, self.action_size), requires_grad=False
+            )
         else:
-             self.log_std_linear = nn.Linear(2 * self.hidden_size, self.action_size)
-            
+            self.log_std_linear = nn.Linear(2 * self.hidden_size, self.action_size)
 
     def forward(self, state):
         x = torch.tanh(self.fc1(state))
@@ -41,7 +42,7 @@ class Actor(nn.Module):
         mu, log_std = self.forward(state)
         std = log_std.exp()
         dist = Independent(Normal(mu, std), 1)
-        # -------- rsample表示先从标准0,1正态上采样,然后将采样值作mean + std * 采样值的操作 
+        # -------- rsample表示先从标准0,1正态上采样,然后将采样值作mean + std * 采样值的操作
         action = dist.rsample()
         log_prob = dist.log_prob(action).unsqueeze(-1)
         # action = torch.tanh(e)
@@ -58,7 +59,7 @@ class Actor(nn.Module):
         # ---------- 这个函数在训练时候启用,用来计算在给定状态，动作的条件下，出现的概率 --------
         mu, log_std = self.forward(state)
         std = log_std.exp()
-        dist = Independent(Normal(mu, std),1)
+        dist = Independent(Normal(mu, std), 1)
         log_prob = dist.log_prob(action)
         entropy = dist.entropy()
         # entropy = dist.entropy()
@@ -68,18 +69,18 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, config):
         super(Critic, self).__init__()
-        self.state_size = config['state_dim']
-        self.hidden_size = config.get('hidden_size', 256)
+        self.state_size = config["state_dim"]
+        self.hidden_size = config.get("hidden_size", 256)
         self.fc1 = nn.Linear(self.state_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
         self.fc3 = nn.Linear(self.hidden_size, 1)
-    
+
     def forward(self, state):
         x = torch.relu(self.fc1(state))
         x = torch.relu(self.fc2(x))
         return self.fc3(x)
 
-    
+
 def init_policy_net(config):
     model = Actor(config)
     # for m in model.modules():

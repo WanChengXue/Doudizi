@@ -1,24 +1,57 @@
-
 from copy import deepcopy
 
 from . import move_detector as md, move_selector as ms
 from .move_generator import MovesGener
 
-EnvCard2RealCard = {5: '5', 6: '6', 7: '7',
-                    8: '8', 9: '9', 10: '10', 11: 'J', 12: 'Q',
-                    13: 'K', 14: 'A', 17: '2', 20: 'X', 30: 'D'}
+EnvCard2RealCard = {
+    5: "5",
+    6: "6",
+    7: "7",
+    8: "8",
+    9: "9",
+    10: "10",
+    11: "J",
+    12: "Q",
+    13: "K",
+    14: "A",
+    17: "2",
+    20: "X",
+    30: "D",
+}
 
-RealCard2EnvCard = {'5': 5, '6': 6, '7': 7,
-                    '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12,
-                    'K': 13, 'A': 14, '2': 17, 'X': 20, 'D': 30}
+RealCard2EnvCard = {
+    "5": 5,
+    "6": 6,
+    "7": 7,
+    "8": 8,
+    "9": 9,
+    "10": 10,
+    "J": 11,
+    "Q": 12,
+    "K": 13,
+    "A": 14,
+    "2": 17,
+    "X": 20,
+    "D": 30,
+}
 
-bombs = [[5, 5, 5, 5], [6, 6, 6, 6],
-        [7, 7, 7, 7], [8, 8, 8, 8], [9, 9, 9, 9], [10, 10, 10, 10],
-        [11, 11, 11, 11], [12, 12, 12, 12], [13, 13, 13, 13], [14, 14, 14, 14],
-        [17, 17, 17, 17], [20, 30]]
+bombs = [
+    [5, 5, 5, 5],
+    [6, 6, 6, 6],
+    [7, 7, 7, 7],
+    [8, 8, 8, 8],
+    [9, 9, 9, 9],
+    [10, 10, 10, 10],
+    [11, 11, 11, 11],
+    [12, 12, 12, 12],
+    [13, 13, 13, 13],
+    [14, 14, 14, 14],
+    [17, 17, 17, 17],
+    [20, 30],
+]
+
 
 class GameEnv(object):
-
     def __init__(self):
         # --- 这个表示出牌的历史动作序列 -----
         self.card_play_action_seq = []
@@ -32,11 +65,9 @@ class GameEnv(object):
         self.acting_player_position = None
         self.player_utility_dict = None
         # --- 这个表示最近一次出的牌构成的字典 ---
-        self.last_move_dict = {'landlord': [],
-                                'farmer': []}
+        self.last_move_dict = {"landlord": [], "farmer": []}
         # --- 这个表示出过的牌 ----
-        self.played_cards = {'landlord': [],
-                                'farmer': []}
+        self.played_cards = {"landlord": [], "farmer": []}
         # --- 这个表示最近一次的出牌 ---
         self.last_move = []
         # --- 这个表示最近两次出牌 ----
@@ -46,56 +77,53 @@ class GameEnv(object):
         # self.num_scores = {'landlord': 0,
         #                 'farmer': 0}
 
-        self.info_sets = {'landlord': InfoSet('landlord'),
-                        'farmer': InfoSet('farmer')}
+        self.info_sets = {"landlord": InfoSet("landlord"), "farmer": InfoSet("farmer")}
         # --- 定义炸弹数量 -----
         self.bomb_num = 0
-        self.last_pid = 'landlord'
+        self.last_pid = "landlord"
 
     def set_rangpaishu(self, rangpai):
         self.rangpaishu = rangpai
 
     @property
     def get_farmer_card_num(self):
-        return len(self.info_sets['farmer'].player_hand_cards)
+        return len(self.info_sets["farmer"].player_hand_cards)
 
     def card_play_init(self, card_play_data):
         # ------ 初始化三个人的手牌，并且放入到infoset中 ----
-        self.info_sets['landlord'].player_hand_cards = \
-            card_play_data['landlord']
-        assert len(self.info_sets['landlord'].player_hand_cards) == 20
-        self.info_sets['farmer'].player_hand_cards = \
-            card_play_data['farmer']
-        assert len(self.info_sets['farmer'].player_hand_cards) == 17
-        self.three_landlord_cards = card_play_data['three_landlord_cards']
-        self.feipai = card_play_data['feipai']
+        self.info_sets["landlord"].player_hand_cards = card_play_data["landlord"]
+        assert len(self.info_sets["landlord"].player_hand_cards) == 20
+        self.info_sets["farmer"].player_hand_cards = card_play_data["farmer"]
+        assert len(self.info_sets["farmer"].player_hand_cards) == 17
+        self.three_landlord_cards = card_play_data["three_landlord_cards"]
+        self.feipai = card_play_data["feipai"]
         self.get_acting_player_position()
         self.game_infoset = self.get_infoset()
-        
 
     def game_done(self):
-        if len(self.info_sets['landlord'].player_hand_cards) == 0 or \
-                len(self.info_sets['farmer'].player_hand_cards) <= self.rangpaishu:
+        if (
+            len(self.info_sets["landlord"].player_hand_cards) == 0
+            or len(self.info_sets["farmer"].player_hand_cards) <= self.rangpaishu
+        ):
             # if one of the three players discards his hand,
             # then game is over.
-            self.compute_player_utility() # 计算一下对局双方的效用
-            # self.update_num_wins_scores() 
+            self.compute_player_utility()  # 计算一下对局双方的效用
+            # self.update_num_wins_scores()
 
             self.game_over = True
 
     def compute_player_utility(self):
 
-        if len(self.info_sets['landlord'].player_hand_cards) == 0:
-            self.player_utility_dict = {'landlord': 1,
-                                        'farmer': -1}
-            self.winner = 'landlord'
+        if len(self.info_sets["landlord"].player_hand_cards) == 0:
+            self.player_utility_dict = {"landlord": 1, "farmer": -1}
+            self.winner = "landlord"
         else:
-            self.player_utility_dict = {'landlord': -1,
-                                        'farmer': 1}
-            self.winner = 'farmer'
+            self.player_utility_dict = {"landlord": -1, "farmer": 1}
+            self.winner = "farmer"
+
     # def update_num_wins_scores(self):
     #     for pos, utility in self.player_utility_dict.items():
-    #         base_score = 2 
+    #         base_score = 2
     #         if utility > 0:
     #             self.num_wins[pos] += 1
     #             self.winner = pos
@@ -118,17 +146,18 @@ class GameEnv(object):
         if action in bombs:
             self.bomb_num += 1
         # --- 这个记录一下最后一次的动作 ---
-        self.last_move_dict[
-            self.acting_player_position] = action.copy()
+        self.last_move_dict[self.acting_player_position] = action.copy()
         # --- 全局状态，卡片行牌的序列，全局历史 ---
         self.card_play_action_seq.append(action)
         self.update_acting_player_hand_cards(action)
         # --- 更新出牌历史 --
         self.played_cards[self.acting_player_position] += action
         # -- 这个地方有必要吗，优先出牌，把三张明牌打出去？（可能是有必要的，误导对手的判断） ---
-        if self.acting_player_position == 'landlord' and \
-                len(action) > 0 and \
-                len(self.three_landlord_cards) > 0:
+        if (
+            self.acting_player_position == "landlord"
+            and len(action) > 0
+            and len(self.three_landlord_cards) > 0
+        ):
             for card in action:
                 if len(self.three_landlord_cards) > 0:
                     if card in self.three_landlord_cards:
@@ -158,14 +187,14 @@ class GameEnv(object):
     # ----- 修改一下出牌的玩家id -----
     def get_acting_player_position(self):
         if self.acting_player_position is None:
-            self.acting_player_position = 'landlord'
+            self.acting_player_position = "landlord"
 
         else:
-            if self.acting_player_position == 'landlord':
-                self.acting_player_position = 'farmer'
+            if self.acting_player_position == "landlord":
+                self.acting_player_position = "farmer"
 
             else:
-                self.acting_player_position = 'landlord'
+                self.acting_player_position = "landlord"
 
         return self.acting_player_position
 
@@ -173,13 +202,13 @@ class GameEnv(object):
     def update_acting_player_hand_cards(self, action):
         if action != []:
             for card in action:
-                self.info_sets[
-                    self.acting_player_position].player_hand_cards.remove(card) # 移除出掉的牌
+                self.info_sets[self.acting_player_position].player_hand_cards.remove(
+                    card
+                )  # 移除出掉的牌
             self.info_sets[self.acting_player_position].player_hand_cards.sort()
 
     def get_legal_card_play_actions(self):
-        mg = MovesGener(
-            self.info_sets[self.acting_player_position].player_hand_cards)
+        mg = MovesGener(self.info_sets[self.acting_player_position].player_hand_cards)
         # --- 这个card_play_action_seq表示历史的动作序列 ---
         action_sequence = self.card_play_action_seq
         rival_move = []
@@ -190,10 +219,10 @@ class GameEnv(object):
             rival_move = action_sequence[-1]
         # --- 根据这个rival_move确定当前智能体能够出牌的类型 ---
         rival_type = md.get_move_type(rival_move)
-        rival_move_type = rival_type['type']
-        rival_move_len = rival_type.get('len', 1)
+        rival_move_type = rival_type["type"]
+        rival_move_len = rival_type.get("len", 1)
         moves = list()
-        # 
+        #
         if rival_move_type == md.TYPE_0_PASS:
             moves = mg.gen_moves()
             # --- 这个gen_moves表示的是所有可能的动作构成的列表 ----
@@ -253,8 +282,7 @@ class GameEnv(object):
             all_moves = mg.gen_type_14_4_22()
             moves = ms.filter_type_14_4_22(all_moves, rival_move)
 
-        if rival_move_type not in [md.TYPE_0_PASS,
-                                   md.TYPE_4_BOMB, md.TYPE_5_KING_BOMB]:
+        if rival_move_type not in [md.TYPE_0_PASS, md.TYPE_4_BOMB, md.TYPE_5_KING_BOMB]:
             moves = moves + mg.gen_type_4_bomb() + mg.gen_type_5_king_bomb()
 
         if len(rival_move) != 0:  # rival_move is not 'pass'
@@ -271,63 +299,59 @@ class GameEnv(object):
         self.game_over = False
         self.acting_player_position = None
         self.player_utility_dict = None
-        self.last_move_dict = {'landlord': [],
-                            'farmer': []}
-        self.played_cards = {'landlord': [],
-                            'farmer': []}
+        self.last_move_dict = {"landlord": [], "farmer": []}
+        self.played_cards = {"landlord": [], "farmer": []}
         self.last_move = []
         self.last_two_moves = []
 
-        self.info_sets = {'landlord': InfoSet('landlord'),
-                        'farmer': InfoSet('farmer')}
+        self.info_sets = {"landlord": InfoSet("landlord"), "farmer": InfoSet("farmer")}
         self.bomb_num = 0
-        self.last_pid = 'landlord'
+        self.last_pid = "landlord"
 
     def get_infoset(self):
         # -- 这个last pid表示最后压注的玩家 ----
-        self.info_sets[
-            self.acting_player_position].last_pid = self.last_pid
+        self.info_sets[self.acting_player_position].last_pid = self.last_pid
         # --- 设置所有合理的动作 ---
         self.info_sets[
-            self.acting_player_position].legal_actions = \
-            self.get_legal_card_play_actions()
+            self.acting_player_position
+        ].legal_actions = self.get_legal_card_play_actions()
         # --- 设置炸弹的数量 ---
-        self.info_sets[
-            self.acting_player_position].bomb_num = self.bomb_num
+        self.info_sets[self.acting_player_position].bomb_num = self.bomb_num
         # ---- 设置最近一次出牌的动作 ---
-        self.info_sets[
-            self.acting_player_position].last_move = self.get_last_move()
+        self.info_sets[self.acting_player_position].last_move = self.get_last_move()
         # --- 设置最近两次的出牌动作 --
         self.info_sets[
-            self.acting_player_position].last_two_moves = self.get_last_two_moves()
+            self.acting_player_position
+        ].last_two_moves = self.get_last_two_moves()
         # --- 这个和上面那个信息重复了，返回的所有玩家最后一个动作构成的字典 --
-        self.info_sets[
-            self.acting_player_position].last_move_dict = self.last_move_dict
+        self.info_sets[self.acting_player_position].last_move_dict = self.last_move_dict
         # ---- 这个是卡片剩余数量构成的字典 ---
-        self.info_sets[self.acting_player_position].num_cards_left_dict = \
-            {pos: len(self.info_sets[pos].player_hand_cards)
-            for pos in ['landlord', 'farmer']}
+        self.info_sets[self.acting_player_position].num_cards_left_dict = {
+            pos: len(self.info_sets[pos].player_hand_cards)
+            for pos in ["landlord", "farmer"]
+        }
         # ---- 这个是在自己的视角来看，所有没有出过的牌构成的list ----
         self.info_sets[self.acting_player_position].other_hand_cards = []
-        for pos in ['landlord', 'farmer']:
+        for pos in ["landlord", "farmer"]:
             if pos != self.acting_player_position:
-                self.info_sets[
-                    self.acting_player_position].other_hand_cards += \
-                    sorted(self.feipai.copy() + self.info_sets[pos].player_hand_cards)
+                self.info_sets[self.acting_player_position].other_hand_cards += sorted(
+                    self.feipai.copy() + self.info_sets[pos].player_hand_cards
+                )
         # ----- 这个palyed_cards表示的是到目前为止，所有出过的牌构成的list ----
-        self.info_sets[self.acting_player_position].played_cards = \
-            self.played_cards
-        self.info_sets[self.acting_player_position].three_landlord_cards = \
-            self.three_landlord_cards
-        self.info_sets[self.acting_player_position].card_play_action_seq = \
-            self.card_play_action_seq
-
+        self.info_sets[self.acting_player_position].played_cards = self.played_cards
         self.info_sets[
-            self.acting_player_position].all_handcards = \
-            {pos: self.info_sets[pos].player_hand_cards
-            for pos in ['landlord', 'farmer']}
+            self.acting_player_position
+        ].three_landlord_cards = self.three_landlord_cards
+        self.info_sets[
+            self.acting_player_position
+        ].card_play_action_seq = self.card_play_action_seq
+
+        self.info_sets[self.acting_player_position].all_handcards = {
+            pos: self.info_sets[pos].player_hand_cards for pos in ["landlord", "farmer"]
+        }
 
         return deepcopy(self.info_sets[self.acting_player_position])
+
 
 class InfoSet(object):
     """
@@ -336,18 +360,19 @@ class InfoSet(object):
     such as the hand cards of the three players, the
     historical moves, etc.
     """
+
     def __init__(self, player_position):
         # The player position, i.e., landlord, landlord_down, or landlord_up
         self.player_position = player_position
         # The hand cands of the current player. A list.
         self.player_hand_cards = None
-        # The number of cards left for each player. It is a dict with str-->int 
+        # The number of cards left for each player. It is a dict with str-->int
         self.num_cards_left_dict = None
         # The three landload cards. A list.
         self.three_landlord_cards = None
         # The historical moves. It is a list of list
         self.card_play_action_seq = None
-        # The union of the hand cards of the other two players for the current player 
+        # The union of the hand cards of the other two players for the current player
         self.other_hand_cards = None
         # The legal actions for the current move. It is a list of list
         self.legal_actions = None
@@ -359,12 +384,9 @@ class InfoSet(object):
         self.last_move_dict = None
         # The played cands so far. It is a list.
         self.played_cards = None
-        # The hand cards of all the players. It is a dict. 
+        # The hand cards of all the players. It is a dict.
         self.all_handcards = None
         # Last player position that plays a valid move, i.e., not `pass`
         self.last_pid = None
         # The number of bombs played so far
         self.bomb_num = None
-
-
-

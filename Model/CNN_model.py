@@ -4,48 +4,66 @@ import torch
 
 
 class CNN(nn.Module):
-    def __init__(
-            self
-    ) -> None:
+    def __init__(self) -> None:
         super(CNN, self).__init__()
 
-        self.state_conv1 = nn.Conv2d(8, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.state_conv1 = nn.Conv2d(
+            8, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.state_bn1 = nn.BatchNorm2d(64)
-        self.state_conv2 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.state_conv2 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.state_bn2 = nn.BatchNorm2d(64)
-        self.state_conv3 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.state_conv3 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.state_bn3 = nn.BatchNorm2d(64)
-        self.state_conv4 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.state_conv4 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.state_bn4 = nn.BatchNorm2d(64)
-        self.state_conv5 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.state_conv5 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.state_bn5 = nn.BatchNorm2d(64)
 
-        self.action_conv1 = nn.Conv2d(2, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.action_conv1 = nn.Conv2d(
+            2, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.action_bn1 = nn.BatchNorm2d(64)
-        self.action_conv2 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.action_conv2 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.action_bn2 = nn.BatchNorm2d(64)
-        self.action_conv3 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.action_conv3 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.action_bn3 = nn.BatchNorm2d(64)
-        self.action_conv4 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.action_conv4 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.action_bn4 = nn.BatchNorm2d(64)
-        self.action_conv5 = nn.Conv2d(64, 64, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.action_conv5 = nn.Conv2d(
+            64, 64, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.action_bn5 = nn.BatchNorm2d(64)
 
         self.activate = nn.LeakyReLU()
 
         # output
-        self.out_conv1 = nn.Conv2d(128, 128, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.out_conv1 = nn.Conv2d(
+            128, 128, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.out_bn1 = nn.BatchNorm2d(128)
-        self.out_conv2 = nn.Conv2d(128, 128, kernel_size=(3, 3), padding=1, padding_mode='circular')
+        self.out_conv2 = nn.Conv2d(
+            128, 128, kernel_size=(3, 3), padding=1, padding_mode="circular"
+        )
         self.out_bn2 = nn.BatchNorm2d(128)
         self.out_linear1 = nn.Linear(7680, 256)
         self.out_linear2 = nn.Linear(256, 1)
 
-    def forward(
-            self,
-            state: Tensor,
-            action: Tensor
-    ) -> Tensor:
+    def forward(self, state: Tensor, action: Tensor) -> Tensor:
         """
         state: [batch_size, channel, row, col]
         action: [batch_size, channel, row, col]

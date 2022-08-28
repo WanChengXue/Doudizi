@@ -5,10 +5,12 @@ import random
 import numpy as np
 from torch.nn.parameter import Parameter
 
+
 def hidden_init(layer):
     fan_in = layer.weight.data.size()[0]
-    lim = 1. / np.sqrt(fan_in)
+    lim = 1.0 / np.sqrt(fan_in)
     return (-lim, lim)
+
 
 class Actor(nn.Module):
     def __init__(self, config):
@@ -17,19 +19,18 @@ class Actor(nn.Module):
         torch.manual_seed(0)
         torch.cuda.manual_seed(0)
         # ---------- log_std_min, log_std_max分别表示变量方差的最小最大的log值 -------
-        self.log_std_min = config.get('log_std_min', -20)
-        self.log_std_max = config.get('log_std_max', 2)
-        self.state_size = config['state_dim']
-        self.action_size = config['action_dim']
-        self.hidden_size = config.get('hidden_size', 256)
+        self.log_std_min = config.get("log_std_min", -20)
+        self.log_std_max = config.get("log_std_max", 2)
+        self.state_size = config["state_dim"]
+        self.action_size = config["action_dim"]
+        self.hidden_size = config.get("hidden_size", 256)
         self.fc1 = nn.Linear(self.state_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
 
         self.mu = nn.Linear(self.hidden_size, self.action_size)
         self.log_std_linear = nn.Linear(self.hidden_size, self.action_size)
-        if config.get('adaptive_alpha', False):
+        if config.get("adaptive_alpha", False):
             self.log_alpha = Parameter(torch.tensor([0.0]))
-
 
     def forward(self, state):
         x = torch.relu(self.fc1(state))
@@ -43,7 +44,7 @@ class Actor(nn.Module):
         mu, log_std = self.forward(state)
         std = log_std.exp()
         dist = Normal(mu, std)
-        # -------- rsample表示先从标准0,1正态上采样,然后将采样值作mean + std * 采样值的操作 
+        # -------- rsample表示先从标准0,1正态上采样,然后将采样值作mean + std * 采样值的操作
         e = dist.rsample()
         # -------- 这个tanh主要是因为动作是-1~1之间 -------
         action = torch.tanh(e)
@@ -53,7 +54,7 @@ class Actor(nn.Module):
         mu, log_std = self.forward(state)
         return mu
 
-    def evaluate(self, state, sample_data = None, epsilon=1e-6):
+    def evaluate(self, state, sample_data=None, epsilon=1e-6):
         # ---------- 这个函数在训练时候启用,用来计算下一个状态的动作,以及出现的概率 --------
         mu, log_std = self.forward(state)
         std = log_std.exp()
@@ -62,27 +63,30 @@ class Actor(nn.Module):
         if sample_data is not None:
             e = sample_data
         action = torch.tanh(e)
-        log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
+        log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(
+            1, keepdim=True
+        )
 
         return action, log_prob
+
 
 class Critic(nn.Module):
     def __init__(self, config):
         super(Critic, self).__init__()
-        self.state_size = config['state_dim']
-        self.action_size = config['action_dim']
-        self.hidden_size = config.get('hidden_size', 256)
+        self.state_size = config["state_dim"]
+        self.action_size = config["action_dim"]
+        self.hidden_size = config.get("hidden_size", 256)
         self.fc1 = nn.Linear(self.state_size + self.action_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
         self.fc3 = nn.Linear(self.hidden_size, 1)
-    
+
     def forward(self, state, action):
         x = torch.cat([state, action], dim=-1)
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
         return self.fc3(x)
 
-    
+
 def init_policy_net(config):
     model = Actor(config)
     # for m in model.modules():

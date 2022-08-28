@@ -1,13 +1,16 @@
 import operator
 import numpy as np
 
+
 class SegmentTree(object):
     def __init__(self, capacity, operation, neutral_element):
-        assert capacity > 0 and capacity & (capacity - 1) == 0, "capacity must be positive and a power of 2."
+        assert (
+            capacity > 0 and capacity & (capacity - 1) == 0
+        ), "capacity must be positive and a power of 2."
         # ----------- 线段树的长度必须是2的指数 -----------
         self._capacity = capacity
         # ---------- 这个value是线段树被构建出来的初值 -------
-        self._value = [neutral_element for _ in range(2 * capacity-1)]
+        self._value = [neutral_element for _ in range(2 * capacity - 1)]
         # ------- 一个完整二叉树的容量为2^{n+1} - 1 -----------------
         self._operation = operation
         # ------- 这个operation可以是sum，可以是min，可以是max，分别表示家和线段树，最小线段树以及最大线段树 -------
@@ -29,7 +32,7 @@ class SegmentTree(object):
                 # ------- 最后一个种情况，mid落在start和end中间，需要拆分区间 -------
                 return self._operation(
                     self._reduce_helper(start, mid, 2 * node, node_start, mid),
-                    self._reduce_helper(mid + 1, end, 2 * node + 1, mid + 1, node_end)
+                    self._reduce_helper(mid + 1, end, 2 * node + 1, mid + 1, node_end),
                 )
 
     def reduce(self, start=0, end=None):
@@ -37,7 +40,7 @@ class SegmentTree(object):
             end = self._capacity
         if end < 0:
             end += self._capacity
-        end -= 1 # 下标是从零开始的
+        end -= 1  # 下标是从零开始的
         # --------- 这个_reduce_helper的参数含义分别是：start, end, node, node_start, node_end
         return self._reduce_helper(start, end, 1, 0, self._capacity - 1)
 
@@ -49,8 +52,7 @@ class SegmentTree(object):
         idx //= 2
         while idx >= 1:
             self._value[idx] = self._operation(
-                self._value[2 * idx],
-                self._value[2 * idx + 1]
+                self._value[2 * idx], self._value[2 * idx + 1]
             )
             idx //= 2
         # ------ 这个循环是用来设置所有父亲节点的value ------
@@ -64,9 +66,7 @@ class SegmentTree(object):
 class SumSegmentTree(SegmentTree):
     def __init__(self, capacity):
         super(SumSegmentTree, self).__init__(
-            capacity=capacity,
-            operation=operator.add,
-            neutral_element=0.0
+            capacity=capacity, operation=operator.add, neutral_element=0.0
         )
         # --------- 设置加法线段树 -------
 
@@ -94,11 +94,10 @@ class SumSegmentTree(SegmentTree):
 class MinSegmentTree(SegmentTree):
     def __init__(self, capacity):
         super(MinSegmentTree, self).__init__(
-            capacity=capacity,
-            operation=min,
-            neutral_element=float('inf')
+            capacity=capacity, operation=min, neutral_element=float("inf")
         )
         #  ------- 默认将最小线段树上面的值都初始化为inf ------
+
     def min(self, start=0, end=None):
         """Returns min(arr[start], ...,  arr[end])"""
         # ------- 这个函数是返回整个buffer中的最小值 ------

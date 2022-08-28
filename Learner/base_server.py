@@ -11,7 +11,12 @@ class base_server:
         self.context.setsockopt(zmq.MAX_SOCKETS, 10000)
         self.poller = zmq.Poller()
         self.log_sender = self.context.socket(zmq.PUSH)
-        self.log_sender.connect("tcp://{}:{}".format(self.config_dict['log_server_address'], self.config_dict['log_server_port']))
+        self.log_sender.connect(
+            "tcp://{}:{}".format(
+                self.config_dict["log_server_address"],
+                self.config_dict["log_server_port"],
+            )
+        )
         self.cached_log_list = []
 
     def send_log(self, log_dict, send_threshold=10):
@@ -31,7 +36,7 @@ class base_server:
                 else:
                     new_prefix_string = key
                 self.recursive_send(value, new_prefix_string, suffix_string)
-        elif isinstance(log_info, (tuple,list)):
+        elif isinstance(log_info, (tuple, list)):
             for index, value in enumerate(log_info):
                 if prefix_string is not None:
                     new_prefix_string = "{}_{}".format(prefix_string, index)
@@ -39,7 +44,9 @@ class base_server:
                     new_prefix_string = key
                 self.recursive_send(value, new_prefix_string, suffix_string)
         else:
-            key = "{}/{}".format(prefix_string, suffix_string) if suffix_string is not None else prefix_string
+            key = (
+                "{}/{}".format(prefix_string, suffix_string)
+                if suffix_string is not None
+                else prefix_string
+            )
             self.send_log({key: log_info})
-
-
