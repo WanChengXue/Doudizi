@@ -42,6 +42,8 @@ class learner_server(base_server):
         self.policy_name = self.config_dict["policy_name"]
         # ------------ 这个global_rank表示的是这个learner使用的是第几张卡，绝对索引 ----------
         self.global_rank = args.rank
+        # ------------ 模型更新10000次后，就固定下来，训练另外一个智能体 -------
+        self.alter_training_times = self.config_dict.get('alter_training_times', 10000)
         self.local_rank = (
             self.global_rank % self.policy_config["device_number_per_machine"]
         )
@@ -63,6 +65,8 @@ class learner_server(base_server):
             self.global_rank // self.policy_config["device_number_per_machine"]
         )
         self.agent_name_list = self.config_dict["env"]["trained_agent_name_list"]
+        self.trained_agent_number = len(self.agent_name_list)
+        self.training_agent_index = 0
         self.parameter_sharing = self.policy_config["parameter_sharing"]
         self.use_centralized_critic = self.policy_config["use_centralized_critic"]
         self.load_data_from_model_pool = self.config_dict.get(
@@ -97,20 +101,24 @@ class learner_server(base_server):
             self.logger.info("--------------- 讲初始化模型发送给configserver --------------")
             self._send_model(self.total_training_steps)
         # ------------- 由于一个plasma对应多个data_server，因此需要循环的从这个plasma id列表中选择 -------------
-        self.plasma_id_queue = queue.Queue(
+        self.plasma_id_queue_dict = {}
+        for trained_agent in self.agent_name_list:
+            self.plasma_id_queue_dict[trained_agent] = queue.Queue(
             maxsize=self.policy_config["server_number_per_device"]
         )
         for i in range(self.policy_config["server_number_per_device"]):
-            plasma_id = plasma.ObjectID(
-                generate_plasma_id(self.machine_index, self.local_rank, i)
-            )
-            self.plasma_id_queue.put(plasma_id)
+            for _trained_agent in self.plasma_id_queue_dict:
+                plasma_id = plasma.ObjectID(
+                    generate_plasma_id(self.machine_index, self.local_rank, i, _trained_agent)
+                )
+                self.plasma_id_queue_dict[_trained_agent].put(plasma_id)
+
         if self.priority_replay_buffer:
             self.create_plasma_server_for_prioritized_replay_buffer()
         # ------------- 连接plasma 服务，这个地方需要提前启动这个plasma服务，然后让client进行连接 -------------
-        self.plasma_client = plasma.connect(
-            self.policy_config["plasma_server_location"], 2
-        )
+        # self.plasma_client = plasma.connect(
+        #     self.policy_config["plasma_server_location"], 2
+        # )
         # ------------- 这个列表是等待数据的时间 -------------
         self.wait_data_times = []
         # ------------- 定义一个变量，观察在一分钟之内参数更新了的次数 -------------
@@ -342,54 +350,9 @@ class learner_server(base_server):
         # if self.total_training_steps % 400 == 0:
         #     self._test_model()
 
-    def _test_model(self):
-        import gym
-        import pybullet_envs
-        import torch
-
-        env = gym.make(self.config_dict["env"]["env_name"])
-        env.seed(0)
-        reward_list = []
-        step = 0
-        current_state = env.reset()
-        while True:
-            with torch.no_grad():
-                action = self.model["default"]["policy"](
-                    torch.FloatTensor(current_state).unsqueeze(0).to(0)
-                )
-                if isinstance(action, tuple):
-                    action = action[0].squeeze().cpu().numpy()
-                else:
-                    action = action.squeeze().cpu().numpy()
-            next_state, instant_reward, done, _ = env.step(action)
-            reward_list.append(instant_reward)
-            current_state = next_state
-            step += 1
-            if done:
-                break
-        self.send_log(
-            {"result/test_reward_{}".format(self.policy_name): sum(reward_list)}
-        )
-
-    def test_training(self):
-        import pickle
-
-        data_file = open("data.pickle", "rb")
-        data = pickle.load(data_file)
-        tensor_data = dict()
-        tensor_data["default"] = dict()
-        tensor_data["default"]["current_agent_obs"] = data[0]
-        tensor_data["default"]["actions"] = data[1]
-        tensor_data["default"]["instant_reward"] = data[2]
-        tensor_data["default"]["next_agent_obs"] = data[3]
-        tensor_data["default"]["done"] = data[4]
-        sac_info_file = open("network_info", "rb")
-        sac_data = pickle.load(sac_info_file)
-        self.algo.step(tensor_data, sac_data)
-
     def training_and_publish_model(self):
         start_time = time.time()
-        selected_plasma_id = self.plasma_id_queue.get()
+        selected_plasma_id = self.plasma_id_queue_dict[self.agent_name_list[self.training_agent_index]].get()
         batch_data = self.plasma_client.get(selected_plasma_id)
         # batch_data = None
         if self.global_rank == 0:
@@ -397,10 +360,13 @@ class learner_server(base_server):
         self._training(batch_data)
         self.training_steps_per_mins += 1
         self.total_training_steps += 1
+        if self.total_training_steps % self.alter_training_times == 0:
+            self.training_agent_index = (self.training_agent_index+1) % (len(self.agent_name_list))
+
         self._send_model(self.total_training_steps)
         # ------------ 将训练数据从plasma从移除 ------------
         self.plasma_client.delete([selected_plasma_id])
-        self.plasma_id_queue.put(selected_plasma_id)
+        self.plasma_id_queue_dict[self.agent_name_list[self.training_agent_index]].put(selected_plasma_id)
 
         if self.global_rank == 0:
             self.logger.info(

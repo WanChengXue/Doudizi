@@ -3,8 +3,8 @@ env:
   # 并行化环境的数目
   parallel_env: 100
   agent_name_list: ['landlord', 'farmer']
-  trained_agent_name_list: ['landlord']
-policy_name: 'DQN_exp'
+  trained_agent_name_list: ['landlord', 'farmer']
+policy_name: 'DQN_both_exp'
 training_mode: Train
 # learning rate 为0的时间,用于优化器的初始化
 warmup_time: 0
@@ -108,7 +108,7 @@ policy_config:
     # --------- 这个agent的key必须要和上面的agent_name list中的相匹配,如果是parameter_sharing的情况,会在config parser中进行修改 -------
     landlord:
       policy:
-        learning_rate: 1e-4
+        learning_rate: 1e-3
         model_name: 'FC_model'
         model_type: 'policy'
         agent_name: 'landlord'
@@ -119,4 +119,5 @@ policy_config:
         model_name: 'FC_model'
         model_type: 'policy'
         agent_name: 'farmer'
-      trained_flag: False
+        learning_rate: 1e-3
+      trained_flag: True
