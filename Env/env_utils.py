@@ -65,6 +65,9 @@ class Environment:
         self.record["landlord"]["hand"].append(
             copy.deepcopy(self.env._env.info_sets["landlord"].player_hand_cards)
         )
+        if self.trained_ai == 'farmer':
+            init_landlord_obs = convert_data_format_to_torch_interference(initial_obs)
+            buildin_ai_action = self.buildin_ai(init_landlord_obs)
 
         return {"x": initial_obs["x_batch"], "z": initial_obs["z_batch"]}
 
@@ -84,6 +87,7 @@ class Environment:
         self.buildin_ai = agent  # 这个表示的是传入的內置AI
         self.trained_ai = trained_ai  # 这个表示需要进行训练的AI
 
+
     def convert_number_to_str(self, card_list):
         # 传入卡片列表，然后返回实际的牌
         if len(card_list) != 0:
@@ -96,31 +100,24 @@ class Environment:
         # ---- 可以训练的AI传入的动作，然后环境step之后获得内置AI需要的状态 -----
         # -------- 传入的动作是一个数字token，实际的执行动作需要从legal_acitons中获取 ------
         if self.visualize_process or self.human_action:
-            print(
-                "-------- 地主手牌为 {} -----".format(
-                    self.convert_number_to_str(
-                        self.env._env.info_sets["landlord"].player_hand_cards
+            if self.trained_ai == 'landlord':
+                print(
+                    "-------- 地主手牌为 {} -----".format(
+                        self.convert_number_to_str(
+                            self.env._env.info_sets["landlord"].player_hand_cards
+                        )
                     )
                 )
-            )
-            print(
-                "-------- 地主出牌 {}---------".format(
-                    self.convert_number_to_str(self.landlord_legal_actions[action])
+                print(
+                    "-------- 地主出牌 {}---------".format(
+                        self.convert_number_to_str(self.landlord_legal_actions[action])
+                    )
                 )
-            )
         self.record["landlord"]["action"].append(self.landlord_legal_actions[action])
         _op_obs, _reward, _done, _ = self.env.step(self.landlord_legal_actions[action])
         self.record["landlord"]["hand"].append(
             copy.deepcopy(self.env._env.info_sets["landlord"].player_hand_cards)
         )
-
-        #  step之后，返回得到的_op_obs应该是内置AI(farmer)的状态了
-        # self.episode_return += reward
-        # episode_return = self.episode_return
-
-        # if done:
-        #     obs = self.env.reset()
-        #     self.episode_return = torch.zeros(1, 1)
 
         # ---- 如果landlord执行完成了动作后没有结束游戏，则轮到farmer开始动作 --------
         if not _done:

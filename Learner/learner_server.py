@@ -43,7 +43,7 @@ class learner_server(base_server):
         # ------------ 这个global_rank表示的是这个learner使用的是第几张卡，绝对索引 ----------
         self.global_rank = args.rank
         # ------------ 模型更新10000次后，就固定下来，训练另外一个智能体 -------
-        self.alter_training_times = self.config_dict.get('alter_training_times', 10000)
+        self.alter_training_times = self.config_dict.get('alter_training_times', 1000)
         self.local_rank = (
             self.global_rank % self.policy_config["device_number_per_machine"]
         )

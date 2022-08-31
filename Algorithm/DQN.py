@@ -26,11 +26,11 @@ class DQNTrainer:
         self.policy_config = policy_config
         # --------- 使用的是policy based的算法，并且是multiagent scenario，因此有一个中心的critic --------
         self.max_grad_norm = self.policy_config["max_grad_norm"]
-        self.agent_name = list(model.keys())[0]
-        self.model = model[self.agent_name]["policy"]
-        self.target_model = target_model[self.agent_name]["policy"]
-        self.optimizer = optimizer[self.agent_name]["policy"]
-        self.scheduler = scheduler[self.agent_name]["policy"]
+        self.agent_name = list(model.keys())
+        self.model = model
+        self.target_model = target_model
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         # [landlord, farmer]
         self.gamma = self.policy_config["gamma"]
         self.tau = float(self.policy_config["tau"])
@@ -38,15 +38,16 @@ class DQNTrainer:
         self.critic_loss = nn.MSELoss()
 
     def step(self, training_data, PRB=None):
-        current_state = training_data[self.agent_name]["current_agent_obs"]
+        trained_agent = list(training_data.keys())[0]
+        current_state = training_data[trained_agent]["current_agent_obs"]
         # next_state = training_data[self.agent_name]['next_agent_obs']
-        instant_reward = training_data[self.agent_name]["instant_reward"]
+        instant_reward = training_data[trained_agent]["instant_reward"]
         # actions = training_data[self.agent_name]['actions'].bool()
         # done = training_data[self.agent_name]['done']
         # next_state_action_length = training_data[self.agent_name]['next_state_action_length'].long()
         # next_q_list = []
         # start_value = 0
-        current_state_Q_value = self.model(**current_state, return_value=True)
+        current_state_Q_value = self.model[trained_agent]['policy'](**current_state, return_value=True)
         # with torch.no_grad():
         #     next_state_Q_value = self.target_model(**next_state, return_value=True)
         #     for batch_length in next_state_action_length:
@@ -57,16 +58,16 @@ class DQNTrainer:
         target_value = instant_reward
         mse_loss = self.critic_loss(target_value, current_state_Q_value)
         info_dict = dict()
-        info_dict["mse_loss"] = mse_loss.item()
-        self.optimizer.zero_grad()
+        info_dict[f"{trained_agent}/mse_loss"] = mse_loss.item()
+        self.optimizer[trained_agent]['policy'].zero_grad()
         mse_loss.backward()
         if self.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(self.model[trained_agent]['policy'].parameters(), self.max_grad_norm)
         _net_max_grads = {}
-        for _name, _value in self.model.named_parameters():
+        for _name, _value in self.model[trained_agent]['policy'].named_parameters():
             _net_max_grads[_name] = torch.max(_value.grad).item()
-        info_dict["layer_max_grad"] = _net_max_grads
-        self.optimizer.step()
-        self.scheduler.step()
-        soft_update(self.model, self.target_model, self.tau)
+        info_dict[f"{trained_agent}/layer_max_grad"] = _net_max_grads
+        self.optimizer[trained_agent]['policy'].step()
+        self.scheduler[trained_agent]['policy'].step()
+        soft_update(self.model[trained_agent]['policy'], self.target_model[trained_agent]['policy'], self.tau)
         return info_dict

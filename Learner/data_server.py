@@ -284,8 +284,7 @@ class data_receiver_server(base_server):
                     weight_data_dict[key] = agent_weight_data
                 return (sample_data_dict, weight_data_dict)
             else:
-                for key in self.replay_buffer:
-                    sample_data_dict[key] = self.replay_buffer[key].sample_data()
+                sample_data_dict[self.trained_agent] = self.replay_buffer[self.trained_agent].sample_data()
             return sample_data_dict
 
     def sampling_data(self):
@@ -315,7 +314,7 @@ class data_receiver_server(base_server):
                     )
         start_convert_to_plasma_time = time.time()
         self.plasma_client.put(
-            sample_data_dict, self.plasma_data_id, memcopy_threads=12
+            sample_data_dict, self.plasma_data_id_dict[self.trained_agent], memcopy_threads=12
         )
         self.logger.info(
             "=============== 将采样出来的数据转移到plasma中耗费的时间为: {} =================".format(
