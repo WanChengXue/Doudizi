@@ -9,7 +9,7 @@ training_mode: Train
 # learning rate 为0的时间,用于优化器的初始化
 warmup_time: 0
 # ip of log server, config_server
-main_server_ip: '172.17.16.17'
+main_server_ip: '10.1.48.115'
 # 10.1.48.115
 # 定义日志文件的文件夹
 log_dir: "Exp/Log"
@@ -38,7 +38,7 @@ load_data_from_model_pool: False
 policy_config:
   # ---- 主机索引 -----------
   main_machine_index: 0
-  machine_list: ['172.17.16.17']
+  machine_list: ['10.1.48.115']
   # 定义一个设备对应与多少个数据server
   server_number_per_device: 1
   # 定义一个机器有多少个设备

@@ -45,6 +45,8 @@ class Agent_manager:
             self.policy_fetcher = fetcher(
                 self.context, self.config_dict, self.statistic, process_uid, self.logger
             )
+        # --------- 定义训练的智能体 ---------
+        self.trained_agent = self.policy_fetcher.get_trained_agent
         # ----------- 定义训练类型 ------------------
         self.training_type = self.policy_config["training_type"]
         self.parameter_sharing = self.policy_config.get("parameter_sharing", False)
@@ -191,6 +193,7 @@ class Agent_manager:
             model_info = self.model_info
         else:
             model_info = self.policy_fetcher.reset()
+            self.trained_agent = self.policy_fetcher.get_trained_agent
             if model_info is not None:
                 self.logger.info(
                     "----------- 模型重置，使用model_fetcher到的模型数据:{} -----------".format(

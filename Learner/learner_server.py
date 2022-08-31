@@ -116,9 +116,9 @@ class learner_server(base_server):
         if self.priority_replay_buffer:
             self.create_plasma_server_for_prioritized_replay_buffer()
         # ------------- 连接plasma 服务，这个地方需要提前启动这个plasma服务，然后让client进行连接 -------------
-        # self.plasma_client = plasma.connect(
-        #     self.policy_config["plasma_server_location"], 2
-        # )
+        self.plasma_client = plasma.connect(
+            self.policy_config["plasma_server_location"], 2
+        )
         # ------------- 这个列表是等待数据的时间 -------------
         self.wait_data_times = []
         # ------------- 定义一个变量，观察在一分钟之内参数更新了的次数 -------------
@@ -299,7 +299,7 @@ class learner_server(base_server):
                 self.config_dict["model_cache_size"],
                 self.logger,
             )
-            model_infomation = {"policy_name": self.policy_name, "url": url_path}
+            model_infomation = {"policy_name": self.policy_name, "url": url_path, "trained_agent": self.agent_name_list[self.training_agent_index]}
             self.next_model_transmit_time += self.model_update_interval
             self.logger.info(
                 "-------------------- 发送模型到configserver，发送的信息为: {}，当前的模型更新次数为: {}".format(

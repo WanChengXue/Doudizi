@@ -21,6 +21,7 @@ class fetcher:
         self.policy_type = self.policy_config["policy_type"]
         self.process_uid = process_uid
         self.logger = logger
+        self.trained_agent = None
         self.model_type = ["policy", "critic", "double_critic"]
         self.use_centralized_critic = self.config_dict["policy_config"][
             "use_centralized_critic"
@@ -115,6 +116,7 @@ class fetcher:
             return None
         else:
             self.logger.info("----------- 开始从configserver下载模型 ------------")
+            self.trained_agent = model_info['trained_agent']
             self._download_model(model_info)
             self.logger.info("------------- 完成模型下载 ----------------")
             return model_info
@@ -172,3 +174,7 @@ class fetcher:
                 return self.model_path
             else:
                 return None
+
+    @property
+    def get_trained_agent(self):
+        return self.trained_agent

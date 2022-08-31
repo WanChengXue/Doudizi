@@ -115,11 +115,13 @@ class config_server(base_server):
             )
             # ------- 更新latest model information ------------
             policy_name = model_information["policy_name"]
+            trained_agent = model_information["trained_agent"]
             assert policy_name == self.policy_name, "--- learner发送过来的策略信息有错误 ----"
             self.latest_model_information = {
                 "url": model_information["url"],
                 "policy_name": policy_name,
                 "time_stamp": time.time(),
+                "trained_agent": trained_agent
             }
 
     def run(self):

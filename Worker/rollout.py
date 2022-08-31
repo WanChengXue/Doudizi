@@ -53,7 +53,6 @@ class sample_generator:
             self.update_policy = (
                 self.policy_config["training_type"] != "supervised_learning"
             )
-        self.buildin_ai = self.policy_config["buildin_ai"]
 
         self.agent = Agent_manager(
             self.config_dict,
@@ -63,7 +62,8 @@ class sample_generator:
             self.logger,
             port_num=port_num,
         )
-        # self.agent.reset()
+        self.trained_agent = self.agent.trained_agent
+        self.agent.reset()
         self.multiagent_scenario = self.config_dict["env"].get(
             "multiagent_scenario", False
         )
@@ -92,10 +92,7 @@ class sample_generator:
 
     def _generate_obs(self, centralized_state):
         state_dict = dict()
-        if self.agent_nums == 1:
-            state_dict[self.agent_name_list[0]] = deepcopy(centralized_state)
-        else:
-            pass
+        state_dict[self.trained_agent] = deepcopy(centralized_state)
         return state_dict
 
     def _revise_episodic_dict(
@@ -158,7 +155,7 @@ class sample_generator:
             # ------ 不然就吐一个值 -------
             episodic_dict = n_step_state_queue.get()
             if isinstance(data_dict, dict):
-                for agent_name in self.agent_name_list:
+                for agent_name in data_dict:
                     self._revise_episodic_dict(
                         episodic_dict[agent_name],
                         n_step_reward_list[agent_name],
@@ -190,14 +187,14 @@ class sample_generator:
         return selected_dict
 
     def _revised_all_reward(self, data_dict, sum_reward):
-        for sample_point in data_dict[self.agent_name_list[0]]:
+        for sample_point in data_dict[self.trained_agent]:
             sample_point["instant_reward"] = sum_reward
 
     def rollout_one_episode_evaluate_by_agent(self):
         self.logger.info("-------- 开始eval 程序 -----------")
         self.env = Environment()
         self.env.set_buildin_ai(
-            self.agent.agent[self.buildin_ai], self.agent_name_list[0]
+            self.agent.agent[self.buildin_ai], self.trained_agent
         )
         self.env.human_action = True
         current_centralized_state = self.env.reset(visualize_process=True)
@@ -218,7 +215,7 @@ class sample_generator:
                 action_dict, _ = self.agent.compute(current_agent_obs)
             else:
                 action_dict = self.agent.compute(current_agent_obs)
-            action = action_dict[self.agent_name_list[0]]
+            action = action_dict[self.trained_agent]
             next_centralized_state, instant_reward, done = self.env.step(action)
             step += 1
             reward_list.append(instant_reward)
@@ -226,6 +223,13 @@ class sample_generator:
                 print("游戏结束！")
                 break
             current_centralized_state = next_centralized_state
+            
+    def generate_buildin_agent(self):
+        self.trained_agent = self.agent.trained_agent
+        for _agent in self.agent_name_list:
+            if _agent != self.trained_agent:
+                return _agent
+            
 
     def rollout_one_episode_multi_agent_scenario(self):
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
@@ -236,11 +240,11 @@ class sample_generator:
         )
         start_env_time = time.time()
         self.env = Environment()
+        self.buildin_ai = self.generate_buildin_agent()
         self.env.set_buildin_ai(
-            self.agent.agent[self.buildin_ai], self.agent_name_list[0]
+            self.agent.agent[self.buildin_ai], self.trained_agent
         )
-        self.env.human_action = True
-        current_centralized_state = self.env.reset(visualize_process=False)
+        current_centralized_state = self.env.reset()
         # --------- 设置内置AI，和需要被训练的智能体 ------
 
         self.logger.info("-------------------- env reset ------------------")
@@ -254,9 +258,8 @@ class sample_generator:
         else:
             data_dict = dict()
             n_step_reward_list = dict()
-            for agent_name in self.agent_name_list:
-                data_dict[agent_name] = []
-                n_step_reward_list[agent_name] = []
+            data_dict[self.trained_agent] = []
+            n_step_reward_list[self.trained_agent] = []
         step = 0
         while True:
             current_agent_obs = self._generate_obs(current_centralized_state)
@@ -270,7 +273,7 @@ class sample_generator:
                 action_dict, log_prob_dict = self.agent.compute(current_agent_obs)
             else:
                 action_dict = self.agent.compute(current_agent_obs)
-            action = action_dict[self.agent_name_list[0]]["action"]
+            action = action_dict[self.trained_agent]["action"]
             next_centralized_state, instant_reward, done = self.env.step(action)
             if done:
                 next_centralized_state = current_centralized_state
@@ -300,22 +303,21 @@ class sample_generator:
                     )
             else:
                 episodic_dict = dict()
-                for agent_name in self.agent_name_list:
-                    episodic_dict[agent_name] = dict()
-                    episodic_dict[agent_name]["current_agent_obs"] = deepcopy(
-                        self.select_data(current_agent_obs[agent_name], action)
-                    )
-                    n_step_reward_list[agent_name].append(instant_reward)
-                    episodic_dict[agent_name]["next_agent_obs"] = deepcopy(
-                        (next_agent_obs[agent_name])
-                    )
-                    if self.policy_based_RL:
-                        episodic_dict[agent_name]["old_obs_value"] = obs_value_dict[
-                            agent_name
-                        ]
-                        episodic_dict[agent_name]["old_log_prob"] = log_prob_dict[
-                            agent_name
-                        ]
+                episodic_dict[self.trained_agent] = dict()
+                episodic_dict[self.trained_agent]["current_agent_obs"] = deepcopy(
+                    self.select_data(current_agent_obs[self.trained_agent], action)
+                )
+                n_step_reward_list[self.trained_agent].append(instant_reward)
+                episodic_dict[self.trained_agent]["next_agent_obs"] = deepcopy(
+                    (next_agent_obs[self.trained_agent])
+                )
+                if self.policy_based_RL:
+                    episodic_dict[self.trained_agent]["old_obs_value"] = obs_value_dict[
+                        self.trained_agent
+                    ]
+                    episodic_dict[self.trained_agent]["old_log_prob"] = log_prob_dict[
+                        self.trained_agent
+                    ]
                 n_step_state_queue.put(episodic_dict)
                 if n_step_state_queue.full() or done:
                     self._app_episodic_dict(
@@ -411,7 +413,7 @@ class sample_generator:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--config_path", type=str, default="Config/Testing/DQN_eval_config.yaml"
+        "--config_path", type=str, default="Config/Training/DQN_config.yaml"
     )
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config

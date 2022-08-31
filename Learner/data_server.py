@@ -54,6 +54,7 @@ class data_receiver_server(base_server):
             "multiagent_scenario", False
         )
         self.agent_name_list = self.config_dict["env"]["trained_agent_name_list"]
+        self.trained_agent = self.agent_name_list[0]
         self._parse_server_id_and_connect_server()
         self._define_performance_parameters()
         if not self.read_data_from_local_machine:
@@ -108,10 +109,13 @@ class data_receiver_server(base_server):
             self._load_data_from_memory()
         self.batch_size = self.policy_config["batch_size"]
         # ------------- 这个地方链接上共享内存服务 -------------------------
-        plasma_id = generate_plasma_id(
-            self.machine_index, self.local_rank, self.data_server_local_rank
-        )
-        self.plasma_data_id = plasma.ObjectID(plasma_id)
+        # 生成两个plasma_id
+        self.plasma_data_id_dict = {}
+        for agent in self.agent_name_list:
+            plasma_id = generate_plasma_id(
+                self.machine_index, self.local_rank, self.data_server_local_rank, agent
+            )
+            self.plasma_data_id_dict[agent] = plasma.ObjectID(plasma_id)
         if self.priority_replay_buffer:
             weight_plamsa_id = generate_plasma_id_for_PEB(
                 self.machine_index, self.local_rank, self.data_server_local_rank
@@ -231,6 +235,7 @@ class data_receiver_server(base_server):
                 else:
                     for key in pickled_data:
                         self.replay_buffer[key].append_data(pickled_data[key])
+                        self.trained_agent = key
                     current_sample_recv_number += len(pickled_data[key])
 
             # ---------- 解析完此次接收，看看到底流入了多少的数据量 -----------
@@ -341,17 +346,16 @@ class data_receiver_server(base_server):
         if self.multiagent_scenario:
             return self.replay_buffer.full_buffer
         else:
-            for key in self.replay_buffer:
-                if not self.replay_buffer[key].full_buffer:
-                    return False
-            else:
+            if self.replay_buffer[self.trained_agent].full_buffer:
                 return True
+            else:
+                return False
 
     def run(self):
         # ----------- 函数一旦运行起来，就不断的监听套接字 ---------------
         self.logger.info(
             "-------------- 数据服务开始启动, 对应的plasma_id是:{} -------------".format(
-                self.plasma_data_id
+                self.plasma_data_id_dict
             )
         )
         while True:
@@ -361,7 +365,7 @@ class data_receiver_server(base_server):
             if (
                 self.full_buffer()
                 and time.time() > self.next_sample_time
-                and not self.plasma_client.contains(self.plasma_data_id)
+                and not self.plasma_client.contains(self.plasma_data_id_dict[self.trained_agent])
             ):
                 current_time = time.time()
                 self.next_sample_time = (
