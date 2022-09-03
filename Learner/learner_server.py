@@ -43,7 +43,7 @@ class learner_server(base_server):
         # ------------ 这个global_rank表示的是这个learner使用的是第几张卡，绝对索引 ----------
         self.global_rank = args.rank
         # ------------ 模型更新10000次后，就固定下来，训练另外一个智能体 -------
-        self.alter_training_times = self.config_dict.get('alter_training_times', 1000)
+        self.alter_training_times = self.config_dict.get("alter_training_times", 200)
         self.local_rank = (
             self.global_rank % self.policy_config["device_number_per_machine"]
         )
@@ -104,12 +104,14 @@ class learner_server(base_server):
         self.plasma_id_queue_dict = {}
         for trained_agent in self.agent_name_list:
             self.plasma_id_queue_dict[trained_agent] = queue.Queue(
-            maxsize=self.policy_config["server_number_per_device"]
-        )
+                maxsize=self.policy_config["server_number_per_device"]
+            )
         for i in range(self.policy_config["server_number_per_device"]):
             for _trained_agent in self.plasma_id_queue_dict:
                 plasma_id = plasma.ObjectID(
-                    generate_plasma_id(self.machine_index, self.local_rank, i, _trained_agent)
+                    generate_plasma_id(
+                        self.machine_index, self.local_rank, i, _trained_agent
+                    )
                 )
                 self.plasma_id_queue_dict[_trained_agent].put(plasma_id)
 
@@ -299,7 +301,11 @@ class learner_server(base_server):
                 self.config_dict["model_cache_size"],
                 self.logger,
             )
-            model_infomation = {"policy_name": self.policy_name, "url": url_path, "trained_agent": self.agent_name_list[self.training_agent_index]}
+            model_infomation = {
+                "policy_name": self.policy_name,
+                "url": url_path,
+                "trained_agent": self.agent_name_list[self.training_agent_index],
+            }
             self.next_model_transmit_time += self.model_update_interval
             self.logger.info(
                 "-------------------- 发送模型到configserver，发送的信息为: {}，当前的模型更新次数为: {}".format(
@@ -352,7 +358,11 @@ class learner_server(base_server):
 
     def training_and_publish_model(self):
         start_time = time.time()
-        selected_plasma_id = self.plasma_id_queue_dict[self.agent_name_list[self.training_agent_index]].get()
+        if self.agent_name_list[self.training_agent_index] == "farmer":
+            print("-----")
+        selected_plasma_id = self.plasma_id_queue_dict[
+            self.agent_name_list[self.training_agent_index]
+        ].get()
         batch_data = self.plasma_client.get(selected_plasma_id)
         # batch_data = None
         if self.global_rank == 0:
@@ -360,14 +370,18 @@ class learner_server(base_server):
         self._training(batch_data)
         self.training_steps_per_mins += 1
         self.total_training_steps += 1
-        if self.total_training_steps % self.alter_training_times == 0:
-            self.training_agent_index = (self.training_agent_index+1) % (len(self.agent_name_list))
 
-        self._send_model(self.total_training_steps)
         # ------------ 将训练数据从plasma从移除 ------------
         self.plasma_client.delete([selected_plasma_id])
-        self.plasma_id_queue_dict[self.agent_name_list[self.training_agent_index]].put(selected_plasma_id)
+        self.plasma_id_queue_dict[self.agent_name_list[self.training_agent_index]].put(
+            selected_plasma_id
+        )
+        if self.total_training_steps % self.alter_training_times == 0:
+            self.training_agent_index = (self.training_agent_index + 1) % (
+                len(self.agent_name_list)
+            )
 
+        self._send_model(self.total_training_steps)
         if self.global_rank == 0:
             self.logger.info(
                 "----------------- 完成第{}次训练 --------------".format(

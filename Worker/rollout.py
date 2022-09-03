@@ -62,7 +62,8 @@ class sample_generator:
             self.logger,
             port_num=port_num,
         )
-        self.trained_agent = self.agent.trained_agent
+        if not self.eval_mode:
+            self.trained_agent = self.agent.trained_agent
         self.agent.reset()
         self.multiagent_scenario = self.config_dict["env"].get(
             "multiagent_scenario", False
@@ -193,10 +194,12 @@ class sample_generator:
     def rollout_one_episode_evaluate_by_agent(self):
         self.logger.info("-------- 开始eval 程序 -----------")
         self.env = Environment()
-        self.env.set_buildin_ai(
-            self.agent.agent[self.buildin_ai], self.trained_agent
-        )
-        self.env.human_action = True
+        # ---- 定义要对打的AI是啥 ----
+        buildin_ai = self.config_dict["env"]["test_agent"]
+        activate_ai = "landlord" if buildin_ai == "farmer" else "farmer"
+        self.trained_agent = activate_ai
+        self.env.set_buildin_ai(self.agent.agent[buildin_ai], activate_ai)
+        self.env.human_action = False
         current_centralized_state = self.env.reset(visualize_process=True)
         reward_list = []
         if self.multiagent_scenario:
@@ -221,15 +224,18 @@ class sample_generator:
             reward_list.append(instant_reward)
             if done:
                 print("游戏结束！")
+                if instant_reward > 0:
+                    print(f"{self.trained_agent}胜利!")
+                else:
+                    print(f"{buildin_ai}胜利!")
                 break
             current_centralized_state = next_centralized_state
-            
+
     def generate_buildin_agent(self):
         self.trained_agent = self.agent.trained_agent
         for _agent in self.agent_name_list:
             if _agent != self.trained_agent:
                 return _agent
-            
 
     def rollout_one_episode_multi_agent_scenario(self):
         # ----------- 这个rollout函数专门用来给RL算法进行采样，这个只用来给MARL场景进行采样,基于CTDE范式 --------------------
@@ -241,10 +247,8 @@ class sample_generator:
         start_env_time = time.time()
         self.env = Environment()
         self.buildin_ai = self.generate_buildin_agent()
-        self.env.set_buildin_ai(
-            self.agent.agent[self.buildin_ai], self.trained_agent
-        )
-        current_centralized_state = self.env.reset()
+        self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.trained_agent)
+        current_centralized_state = self.env.reset(visualize_process=True)
         # --------- 设置内置AI，和需要被训练的智能体 ------
 
         self.logger.info("-------------------- env reset ------------------")
@@ -373,12 +377,12 @@ class sample_generator:
             step,
         )
         self.statistic.append(
-            "result/win/{}".format(self.config_dict["policy_name"]),
-            1 if instant_reward >= 0.0 else -1,
+            "result/win_rate/{}".format(self.agent.trained_agent),
+            1 if instant_reward >= 0.0 else 0,
         )
         # self.statistic.append('Worker/sample_cycle_time_per_epsode/{}'.format(self.config_dict['policy_name']), sum(cycle_list)/3600.0)
         self.statistic.append(
-            "result/sum_instant_reward/{}".format(self.config_dict["policy_name"]),
+            "result/sum_instant_reward/{}".format(self.agent.trained_agent),
             sum(reward_list),
         )
         result_info = {"worker_id": self.uuid}
@@ -413,7 +417,7 @@ class sample_generator:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--config_path", type=str, default="Config/Training/DQN_config.yaml"
+        "--config_path", type=str, default="Config/Testing/DQN_eval_config.yaml"
     )
     # Independent_D4PG_heterogeneous_network_eval_config
     # heterogeneous_network_eval_config

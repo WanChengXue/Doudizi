@@ -121,7 +121,7 @@ class config_server(base_server):
                 "url": model_information["url"],
                 "policy_name": policy_name,
                 "time_stamp": time.time(),
-                "trained_agent": trained_agent
+                "trained_agent": trained_agent,
             }
 
     def run(self):

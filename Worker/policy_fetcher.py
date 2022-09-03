@@ -116,7 +116,7 @@ class fetcher:
             return None
         else:
             self.logger.info("----------- 开始从configserver下载模型 ------------")
-            self.trained_agent = model_info['trained_agent']
+            self.trained_agent = model_info["trained_agent"]
             self._download_model(model_info)
             self.logger.info("------------- 完成模型下载 ----------------")
             return model_info

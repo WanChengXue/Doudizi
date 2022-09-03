@@ -1,4 +1,6 @@
 import copy
+
+
 def filter_type_1_single(action_list):
     # 单排过滤
     pass
@@ -30,8 +32,6 @@ def filter_type_5_king_bomb(action_list, total_action_combination):
             action_list_copy.remove([20, 30])
     # 这样子就相当于把王炸给删除了
     return action_list_copy
-    
-
 
 
 def filter_type_6_3_1(action_list):
@@ -82,7 +82,7 @@ def filter_type_13_4_22(action_list):
 
 def filter_action(legal_action_list, total_action_combination):
     # action_dict表示所有能够合法动作构成的列表
-    
+
     # total_action_combination表示当前手牌所有合法的动作组合
     # 这里简单调用一下王炸过滤函数
     filter_type_5_king_bomb(legal_action_list, total_action_combination)

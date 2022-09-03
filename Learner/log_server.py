@@ -213,9 +213,10 @@ class log_server(base_server):
         self.summary_logger.add_tag(
             "model/loss/{}".format(self.policy_name), 10, "mean"
         )
-        self.summary_logger.add_tag(
-            "result/sum_instant_reward/{}".format(self.policy_name), 10, "mean"
-        )
+        self.summary_logger.add_tag("result/sum_instant_reward/landlord", 100, "mean")
+        self.summary_logger.add_tag("result/sum_instant_reward/farmer", 100, "mean")
+        self.summary_logger.add_tag("result/win_rate/landlord", 100, "mean")
+        self.summary_logger.add_tag("result/win_rate/farmer", 100, "mean")
 
     def log_parse(self, data):
         # ------------- 这个函数用来解析log_server接收到的日志 -----------
