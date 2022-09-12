@@ -248,7 +248,7 @@ class sample_generator:
         self.env = Environment()
         self.buildin_ai = self.generate_buildin_agent()
         self.env.set_buildin_ai(self.agent.agent[self.buildin_ai], self.trained_agent)
-        current_centralized_state = self.env.reset(visualize_process=True)
+        current_centralized_state = self.env.reset(visualize_process=False)
         # --------- 设置内置AI，和需要被训练的智能体 ------
 
         self.logger.info("-------------------- env reset ------------------")

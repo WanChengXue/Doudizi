@@ -44,7 +44,7 @@ def _read_model_from_model_pool(
                 )
             config_dict["policy_config"]["agent"][agent_name]["policy"][
                 "model_path"
-            ] = os.path.join(model_pool_path, model_pool_file[-1])
+            ] = os.path.join(model_pool_path, model_pool_file[0])
 
 
 def _double_q_network_repeat_config(config_dict):

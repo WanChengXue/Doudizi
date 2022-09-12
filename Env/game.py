@@ -35,6 +35,7 @@ RealCard2EnvCard = {
     "D": 30,
 }
 
+
 bombs = [
     [5, 5, 5, 5],
     [6, 6, 6, 6],
