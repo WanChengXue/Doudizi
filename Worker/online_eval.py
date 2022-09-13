@@ -162,6 +162,23 @@ class OnlineAgent:
 
         return moves
 
+    def _convert_list_string_to_number_token(self, list_string):
+        token_list = []
+        for single_record in list_string:
+            token_list.extend(self._convert_str_to_number(single_record))
+        return token_list
+
+    def _filter_rest_card_token_list(self, landlord_token_list, farmer_token_list, mycard_token_list):
+        # 传入地主，玩家打过的牌，以及自己的手牌，推断出剩下哪些牌没有出
+        total_card_bak = copy.deepcopy(self.TotalCard)
+        for element in landlord_token_list:
+            total_card_bak.remove(element)
+        for element in farmer_token_list:
+            total_card_bak.remove(element)
+        for element in mycard_token_list:
+            total_card_bak.remove(element)
+        return total_card_bak
+
     def _construct_infoset(self, agent_infoset: InfoSet, obs, current_position):
         agent_infoset.player_hand_cards = self._convert_str_to_number(
             obs["self._cards"]
@@ -176,44 +193,29 @@ class OnlineAgent:
         agent_infoset.bomb_num = int(obs["bomb_num"])
         # 设置最后一次出牌的动作
         agent_infoset.last_move = oppo_last_move_card_list
-        # 将最后两次出牌的动作存放下来
-        agent_infoset.last_two_moves = [
-            self._convert_str_to_number(obs["history"]["self"][-1]),
-            oppo_last_move_card_list,
-        ]
-        # 记录last move dict &  将卡片剩余数量构成字典
+        # 将两个玩家出过的牌的历史变成一个单一的列表
+        landlord_history = obs['history']['self'] if current_position == 'landlord' else obs['history']['oppo']
+        farmer_history = obs['history']['self'] if current_position == 'farmer' else obs['hisotry']['oppo']
+        # 记录卡片剩余数量构成字典 & 两个玩家出过的牌构成的历史
+        landlord_history_token = self._convert_list_string_to_number_token(landlord_history)
+        farmer_history_token = self._convert_list_string_to_number_token(farmer_history)
         if current_position == "landlord":
-            agent_infoset.last_move_dict = {
-                "landlord": self._convert_str_to_number(obs["history"]["self"][-1]),
-                "farmer": oppo_last_move_card_list,
-            }
             agent_infoset.num_cards_left_dict = {
                 "landlord": len(obs["self_cards"]),
                 "farmer": int(obs["oppo_left_cards"]),
             }
+
         else:
-            agent_infoset.last_move_dict = {
-                "landlord": oppo_last_move_card_list,
-                "farmer": self._convert_str_to_number(obs["history"]["self"][-1]),
-            }
             agent_infoset.num_cards_left_dict = {
                 "landlord": int(obs["oppo_left_cards"]),
                 "farmer": len(obs["self_cards"]),
             }
         # ---- 这个是在自己的视角来看，所有没有出过的牌构成的list，做法就是对history进行整合，然后和整幅牌取交 ----
-        agent_infoset.other_hand_cards = []
-        total_card_bak = copy.deepcopy(self.TotalCard)
-        # 移除自己的手牌
-        for element in agent_infoset.player_hand_cards:
-            total_card_bak.remove(element)
-        # 移除对局历史
-        for history_list in obs["history"].values():
-            for single_list in history_list:
-                number_token = self._convert_str_to_number(single_list)
-                for element in number_token:
-                    total_card_bak.remove(element)
-        agent_infoset.other_hand_cards = total_card_bak
-        # 还需要card_play_action_seq
+        agent_infoset.other_hand_cards = self._filter_rest_card_token_list(landlord_history_token, farmer_history_token, agent_infoset.player_hand_cards)
+        # 记录对手出过的牌的历史
+        agent_infoset.played_cards = {"landlord": landlord_history_token, "farmer": farmer_history_token}
+        # 还需要card_play_action_seq,这是一个交错的历史
+
 
     def _generate_landlord_obs(self, obs):
         # 根据obs构建一个Infostate
