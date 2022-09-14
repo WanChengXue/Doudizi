@@ -2,7 +2,8 @@
 import os
 import sys
 import copy
-
+import argparse
+import numpy as np
 current_path = os.path.abspath(__file__)
 root_path = "/".join(current_path.split("/")[:-2])
 sys.path.append(root_path)
@@ -14,12 +15,12 @@ from Env.game import EnvCard2RealCard, RealCard2EnvCard
 from Env.game import InfoSet
 from Env import move_selector, move_detector
 from Env.move_generator import MovesGener
-
+from Env.env import get_obs
 
 class OnlineAgent:
-    def __init__(self, config):
+    def __init__(self, config_path):
         # 载入两个智能体
-        self.config = config
+        self.config = parse_config(config_path)
         self.TotalCard = [
             5,
             5,
@@ -68,17 +69,18 @@ class OnlineAgent:
             20,
             30,
         ]
+        self._construct_agent()
 
     def _construct_agent(self):
         # 构建landlord和farmer两个智能体
-        self.landlord = agent.get_agent(self.config["policy_config"]["landlord"])
-        self.farmer = agent.get_agent(self.config["policy_config"]["farmer"])
+        self.landlord = agent.get_agent(self.config["policy_config"]["agent_name"])(self.config["policy_config"]["agent"]["landlord"])
+        self.farmer = agent.get_agent(self.config["policy_config"]["agent_name"])(self.config["policy_config"]["agent"]["farmer"])
         # 载入模型的参数
         self.landlord.synchronize_model(
-            {"policy": self.config["policy_config"]["landlord"]["model_path"]}
+            {"policy": self.config["policy_config"]["agent"]["landlord"]["policy"]["model_path"]}
         )
         self.farmer.synchronize_model(
-            {"policy": self.config["policy_config"]["farmer"]["model_path"]}
+            {"policy": self.config["policy_config"]["agent"]["farmer"]["policy"]["model_path"]}
         )
 
     def _get_legal_card_play_actions(self, player_hand_cards, rival_move):
@@ -168,20 +170,33 @@ class OnlineAgent:
             token_list.extend(self._convert_str_to_number(single_record))
         return token_list
 
-    def _filter_rest_card_token_list(self, landlord_token_list, farmer_token_list, mycard_token_list):
-        # 传入地主，玩家打过的牌，以及自己的手牌，推断出剩下哪些牌没有出
-        total_card_bak = copy.deepcopy(self.TotalCard)
-        for element in landlord_token_list:
-            total_card_bak.remove(element)
-        for element in farmer_token_list:
-            total_card_bak.remove(element)
-        for element in mycard_token_list:
-            total_card_bak.remove(element)
-        return total_card_bak
+    def _convert_number_to_str(self, card_list):
+    # 传入卡片列表，然后返回实际的牌
+        if len(card_list) != 0:
+            real_card_list = [EnvCard2RealCard[token] for token in card_list]
+            return ",".join(real_card_list)
+        else:
+            return ""
+
+    def _convert_str_to_number(self, card_str):
+        # 接收一个str，然后变成数字列表
+        if len(card_str) != 0:
+            card_token_list = [RealCard2EnvCard[token] for token in card_str.split(',')]
+            return card_token_list
+        else:
+            return []
+
+    def _filter_rest_card_token_list(self, self_history_token, op_history_token, self_hand):
+        card_bak = copy.deepcopy(self.TotalCard)
+        history_card = self_history_token + op_history_token + self_hand
+        for element in history_card:
+            card_bak.remove(element)
+        return card_bak
+
 
     def _construct_infoset(self, agent_infoset: InfoSet, obs, current_position):
         agent_infoset.player_hand_cards = self._convert_str_to_number(
-            obs["self._cards"]
+            obs["self_cards"]
         )
         agent_infoset.last_pid = "landlord"
         # 构建legal_action，首先获取上一个时刻的出牌是什么
@@ -193,81 +208,140 @@ class OnlineAgent:
         agent_infoset.bomb_num = int(obs["bomb_num"])
         # 设置最后一次出牌的动作
         agent_infoset.last_move = oppo_last_move_card_list
-        # 将两个玩家出过的牌的历史变成一个单一的列表
-        landlord_history = obs['history']['self'] if current_position == 'landlord' else obs['history']['oppo']
-        farmer_history = obs['history']['self'] if current_position == 'farmer' else obs['hisotry']['oppo']
         # 记录卡片剩余数量构成字典 & 两个玩家出过的牌构成的历史
-        landlord_history_token = self._convert_list_string_to_number_token(landlord_history)
-        farmer_history_token = self._convert_list_string_to_number_token(farmer_history)
+        self_history_token = self._convert_str_to_number(obs['self_out'])
+        op_history_token = self._convert_str_to_number(obs['oppo_out'])
         if current_position == "landlord":
             agent_infoset.num_cards_left_dict = {
-                "landlord": len(obs["self_cards"]),
+                "landlord": len(obs["self_cards"].split(',')),
                 "farmer": int(obs["oppo_left_cards"]),
             }
-
+            agent_infoset.played_cards = {"landlord": self_history_token, "farmer": op_history_token}
+            landlord_history = obs['history']['self']
+            farmer_history = obs['history']['oppo']
         else:
             agent_infoset.num_cards_left_dict = {
                 "landlord": int(obs["oppo_left_cards"]),
-                "farmer": len(obs["self_cards"]),
+                "farmer": len(obs["self_cards"].split(',')),
             }
+            agent_infoset.played_cards = {"landlord": op_history_token, "farmer": self_history_token}
+            agent_infoset.last_move_dict = {"landlord": oppo_last_move_card_list}
+            farmer_history = obs['history']['self']
+            landlord_history = obs['history']['oppo']
         # ---- 这个是在自己的视角来看，所有没有出过的牌构成的list，做法就是对history进行整合，然后和整幅牌取交 ----
-        agent_infoset.other_hand_cards = self._filter_rest_card_token_list(landlord_history_token, farmer_history_token, agent_infoset.player_hand_cards)
-        # 记录对手出过的牌的历史
-        agent_infoset.played_cards = {"landlord": landlord_history_token, "farmer": farmer_history_token}
+        agent_infoset.other_hand_cards = self._filter_rest_card_token_list(self_history_token, op_history_token, agent_infoset.player_hand_cards)
         # 还需要card_play_action_seq,这是一个交错的历史
+        agent_infoset.card_play_action_seq = self._generate_alter_history(landlord_history, farmer_history, current_position)
 
+
+    def _generate_alter_history(self, landlord_history, farmer_history, current_position):
+        alter_history = []
+        if current_position == "landlord":
+            assert len(landlord_history) == len(farmer_history)
+            for _landlord_history, _farmer_history in zip(landlord_history, farmer_history):
+                alter_history.append(self._convert_str_to_number(_landlord_history))
+                alter_history.append(self._convert_str_to_number(_farmer_history))
+        else:
+            assert len(landlord_history) == len(farmer_history) + 1
+            for _landlord_history, _farmer_history in zip(landlord_history[:-1], farmer_history):
+                alter_history.append(self._convert_str_to_number(_landlord_history))
+                alter_history.append(self._convert_str_to_number(_farmer_history))
+            alter_history.append(self._convert_str_to_number(landlord_history[-1]))
+        return alter_history
+
+    def _modify_obs(self, obs):
+        x_batch = np.array(obs["x_batch"])
+        z_batch = np.array(obs["z_batch"])
+        x_no_action = np.array(obs["x_no_action"])
+        z = np.array(obs["z"])
+        new_obs = {
+            "x_batch": x_batch,
+            "z_batch": z_batch,
+            "legal_actions": obs["legal_actions"],
+        }
+        return new_obs
 
     def _generate_landlord_obs(self, obs):
         # 根据obs构建一个Infostate
         landlord_infoset = InfoSet("landlord")
-        landlord_infoset.player_hand_cards
+        self._construct_infoset(landlord_infoset, obs, "landlord")
+        return self._modify_obs(get_obs(landlord_infoset))
 
     def _generate_farmer_obs(self, obs):
         farmer_infoset = InfoSet("farmer")
+        self._construct_infoset(farmer_infoset, obs, "farmer")
+        return self._modify_obs(get_obs(farmer_infoset))
 
-    def _get_agent_obs(self, obs):
-        # 根据传入的数据构建智能体的obs
-        """
-        {
-            "self_cards": "5,10,5,6,6,6",
-            "self_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
-            "oppo_last_move": "",
-            "oppo_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
-            "self_win_card_num": 0,
-            "oppo_win_card_num": 1,
-            "oppo_left_cards":3,
-            "history":["5,7,7,7","8,8,8,6","9,J,J,J","","6,10,Q,Q,Q,K,K,K",""]
-        }
-        """
+    def decision(self, obs):
         # 首先必须要知道自己的是地主还是农民,提取self_win_card_num，如果大于0就是地主
-        position_type = "landlord" if obs["self_win_card_num"] > 0 else "farmer"
+        position_type = "landlord" if obs["self_win_card_num"] == 0 else "farmer"
         # 构建不同类型玩家的obs
         if position_type == "landlord":
             agent_obs = self._generate_landlord_obs(obs)
             action = self._decision(self.landlord, agent_obs)
         else:
-            pass
+            agent_obs = self._generate_farmer_obs(obs)
+            action = self._decision(self.farmer, agent_obs)
+        return action
 
-    def _convert_number_to_str(self, card_list):
-        # 传入卡片列表，然后返回实际的牌
-        if len(card_list) != 0:
-            real_card_list = [EnvCard2RealCard[token] for token in card_list]
-            return ",".join(real_card_list)
-        else:
-            return ""
 
-    def _convert_str_to_number(self, card_str):
-        # 接收一个str，然后变成数字列表
-        if len(card_str) != 0:
-            card_token_list = [RealCard2EnvCard[token] for token in card_str]
-            return card_token_list
-        else:
-            return []
-
-    def _decision(self, agent, agent_obs, legal_action):
+    def _decision(self, agent, agent_obs):
         # 将这个agent_obs变成tensor
-        tensor_obs = convert_data_format_to_torch_interference(agent_obs)
+        input_dict = {"x": agent_obs["x_batch"], "z": agent_obs["z_batch"]}
+        tensor_obs = convert_data_format_to_torch_interference(input_dict)
         action_index = agent.compute_action_eval_mode(tensor_obs)
         # 根据index获取真实动作
+        legal_action = agent_obs['legal_actions']
         action = legal_action[action_index]
         # 然后将这个action变成实际的动作返回
+        return self._convert_number_to_str(action)
+
+    def run(self):
+        while True:
+            # 这个地方开一个http服务，然后每次接受参数，调用网络，返回一个出牌
+            pass
+        
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config_path", type=str, default="Config/Testing/DQN_eval_config.yaml"
+    )
+    # Independent_D4PG_heterogeneous_network_eval_config
+    # heterogeneous_network_eval_config
+    args = parser.parse_args()
+    worker = OnlineAgent(args.config_path)
+    # test lordland
+    test_landlord_string = {
+        "self_cards": "5,10,5,6,6,6",
+        "self_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
+        "oppo_last_move": "",
+        "oppo_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
+        "self_win_card_num": 0,
+        "oppo_win_card_num": 1,
+        "oppo_left_cards":3,
+        "bomb_num": 0,
+        "history":{
+            "self": ["7,8,9,10,J,Q,K", "", "", 'J','X', '2,2,2,A,A'],
+            "oppo": ["8,9,10,J,Q,K,A", '5,6,7,8,9', '7', 'Q', "", ""]
+        }
+        }
+    # test farmer
+    test_farmer_string = {
+        "self_cards": "5,10,5",
+        "self_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
+        "oppo_last_move": "6",
+        "oppo_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
+        "self_win_card_num": 1,
+        "oppo_win_card_num": 0,
+        "oppo_left_cards":6,
+        "bomb_num": 0,
+        "history":{
+            "self": ["8,9,10,J,Q,K,A", '5,6,7,8,9', '7', 'Q', "", ""] ,
+            "oppo": ["7,8,9,10,J,Q,K", "", "", 'J','X', '2,2,2,A,A', '6']
+        }
+        }
+    landlord_output = worker.decision(test_landlord_string) 
+    print(landlord_output)
+
+    farmer_output = worker.decision(test_farmer_string)
+    print(farmer_output)
