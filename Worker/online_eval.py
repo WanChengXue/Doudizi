@@ -4,6 +4,11 @@ import sys
 import copy
 import argparse
 import numpy as np
+
+from flask import Flask, request, jsonify
+from flask import Flask
+import json
+
 current_path = os.path.abspath(__file__)
 root_path = "/".join(current_path.split("/")[:-2])
 sys.path.append(root_path)
@@ -17,6 +22,22 @@ from Env import move_selector, move_detector
 from Env.move_generator import MovesGener
 from Env.env import get_obs
 
+ 
+app = Flask(__name__)
+app.debug = True
+ 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--config_path", type=str, default="Config/Testing/DQN_eval_config.yaml"
+)
+# Independent_D4PG_heterogeneous_network_eval_config
+# heterogeneous_network_eval_config
+args = parser.parse_args()
+
+ 
+
+ 
+    # 这里指定了地址和端口号。也可以不指定地址填0.0.0.0那么就会使用本机地址ip
 class OnlineAgent:
     def __init__(self, config_path):
         # 载入两个智能体
@@ -301,47 +322,63 @@ class OnlineAgent:
             # 这个地方开一个http服务，然后每次接受参数，调用网络，返回一个出牌
             pass
         
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config_path", type=str, default="Config/Testing/DQN_eval_config.yaml"
-    )
-    # Independent_D4PG_heterogeneous_network_eval_config
-    # heterogeneous_network_eval_config
-    args = parser.parse_args()
-    worker = OnlineAgent(args.config_path)
-    # test lordland
-    test_landlord_string = {
-        "self_cards": "5,10,5,6,6,6",
-        "self_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
-        "oppo_last_move": "",
-        "oppo_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
-        "self_win_card_num": 0,
-        "oppo_win_card_num": 1,
-        "oppo_left_cards":3,
-        "bomb_num": 0,
-        "history":{
-            "self": ["7,8,9,10,J,Q,K", "", "", 'J','X', '2,2,2,A,A'],
-            "oppo": ["8,9,10,J,Q,K,A", '5,6,7,8,9', '7', 'Q', "", ""]
-        }
-        }
-    # test farmer
-    test_farmer_string = {
-        "self_cards": "5,10,5",
-        "self_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
-        "oppo_last_move": "6",
-        "oppo_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
-        "self_win_card_num": 1,
-        "oppo_win_card_num": 0,
-        "oppo_left_cards":6,
-        "bomb_num": 0,
-        "history":{
-            "self": ["8,9,10,J,Q,K,A", '5,6,7,8,9', '7', 'Q', "", ""] ,
-            "oppo": ["7,8,9,10,J,Q,K", "", "", 'J','X', '2,2,2,A,A', '6']
-        }
-        }
-    landlord_output = worker.decision(test_landlord_string) 
-    print(landlord_output)
+worker = OnlineAgent(args.config_path)
 
-    farmer_output = worker.decision(test_farmer_string)
-    print(farmer_output)
+@app.route('/', methods=['GET', 'POST'])
+def post_http():
+    if not request.data:  # 检测是否有数据
+        return ('fail')
+    state_dict = request.data.decode('utf-8')
+    # 获取到POST过来的数据，因为我这里传过来的数据需要转换一下编码。根据晶具体情况而定
+    prams = json.loads(state_dict)
+    print(prams)
+    res = worker.decision(prams)
+    # 把区获取到的数据转为JSON格式。
+    return jsonify(res)
+
+
+if __name__ == "__main__":
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument(
+    #     "--config_path", type=str, default="Config/Testing/DQN_eval_config.yaml"
+    # )
+    # # Independent_D4PG_heterogeneous_network_eval_config
+    # # heterogeneous_network_eval_config
+    # args = parser.parse_args()
+    # worker = OnlineAgent(args.config_path)
+    # # test lordland
+    # test_landlord_string = {
+    #     "self_cards": "5,10,5,6,6,6",
+    #     "self_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
+    #     "oppo_last_move": "",
+    #     "oppo_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
+    #     "self_win_card_num": 0,
+    #     "oppo_win_card_num": 1,
+    #     "oppo_left_cards":3,
+    #     "bomb_num": 0,
+    #     "history":{
+    #         "self": ["7,8,9,10,J,Q,K", "", "", 'J','X', '2,2,2,A,A'],
+    #         "oppo": ["8,9,10,J,Q,K,A", '5,6,7,8,9', '7', 'Q', "", ""]
+    #     }
+    #     }
+    # # test farmer
+    # test_farmer_string = {
+    #     "self_cards": "5,10,5",
+    #     "self_out": "8,9,10,J,Q,K,A,5,6,7,8,9,7,Q",
+    #     "oppo_last_move": "6",
+    #     "oppo_out": "7,8,9,10,J,Q,K,J,X,2,2,2,A,A",
+    #     "self_win_card_num": 1,
+    #     "oppo_win_card_num": 0,
+    #     "oppo_left_cards":6,
+    #     "bomb_num": 0,
+    #     "history":{
+    #         "self": ["8,9,10,J,Q,K,A", '5,6,7,8,9', '7', 'Q', "", ""] ,
+    #         "oppo": ["7,8,9,10,J,Q,K", "", "", 'J','X', '2,2,2,A,A', '6']
+    #     }
+    #     }
+    # landlord_output = worker.decision(test_landlord_string) 
+    # print(landlord_output)
+
+    # farmer_output = worker.decision(test_farmer_string)
+    # print(farmer_output)
+    app.run(host='172.17.16.17', port=2345)
